@@ -2,6 +2,9 @@
   "name": "nusa-toys",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +15,6 @@
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.5",
     "next": "16.2.10",
-    "pg": "^8.22.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.9.2"
