@@ -15,5 +15,10 @@ export function getSupabase() {
   return _supabase;
 }
 
-// Ekspor supabase untuk dipakai di semua halaman
-export const supabase = getSupabase();
+// Ekspor fungsi — jangan inisialisasi di module level (error saat build Vercel)
+let _supabaseClient;
+
+export function getSupabaseClient() {
+  if (!_supabaseClient) _supabaseClient = createClient();
+  return _supabaseClient;
+}
