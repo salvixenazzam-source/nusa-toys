@@ -85,15 +85,56 @@ export default function Sidebar() {
         <nav className="flex-1 overflow-y-auto py-3">
           <SidebarContent pathname={pathname} />
         </nav>
+        {/* Logout — desktop */}
+        <div className="hidden md:block px-4 pb-4 border-t border-stone-200 pt-3">
+          <DesktopLogoutButton />
+        </div>
       </aside>
     </>
   );
 }
 
-function SidebarContent({ pathname, onNavigate }) {
+function DesktopLogoutButton() {
   const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
+    setLoggingOut(true);
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
+
+  return (
+    <button
+      onClick={handleLogout}
+      disabled={loggingOut}
+      className="flex items-center gap-2 w-full rounded-xl px-3 py-2.5 text-sm font-medium text-stone-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
+    >
+      <svg
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"
+        />
+      </svg>
+      {loggingOut ? "Keluar..." : "Logout"}
+    </button>
+  );
+}
+
+function SidebarContent({ pathname, onNavigate }) {
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
     await supabase.auth.signOut();
     onNavigate?.();
     router.push("/login");
@@ -127,10 +168,11 @@ function SidebarContent({ pathname, onNavigate }) {
       <div className="md:hidden mt-auto px-2 pb-4 pt-2 border-t border-stone-200">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 rounded-xl px-3 py-3 text-base font-medium text-stone-500 hover:bg-red-50 hover:text-red-600 transition-colors w-full text-left"
+          disabled={loggingOut}
+          className="flex items-center gap-3 rounded-xl px-3 py-3 text-base font-medium text-stone-500 hover:bg-red-50 hover:text-red-600 transition-colors w-full text-left disabled:opacity-50"
         >
           <span className="text-lg">🚪</span>
-          Logout
+          {loggingOut ? "Keluar..." : "Logout"}
         </button>
       </div>
     </>
