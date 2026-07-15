@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-accent: #0d9488;
+  --color-accent-light: #f0fdfa;
+  --color-accent-dark: #0f766e;
+  --font-sans: var(--font-inter);
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+body {
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  background: #fafaf9;
+  color: #292524;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
