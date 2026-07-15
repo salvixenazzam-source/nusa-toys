@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+// Fase A: no Supabase — logout is a noop placeholder
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -100,7 +100,7 @@ function DesktopLogoutButton() {
 
   const handleLogout = async () => {
     setLoggingOut(true);
-    await supabase.auth.signOut();
+    // Fase A: no Supabase auth, just redirect
     router.push("/login");
     router.refresh();
   };
@@ -135,7 +135,7 @@ function SidebarContent({ pathname, onNavigate }) {
 
   const handleLogout = async () => {
     setLoggingOut(true);
-    await supabase.auth.signOut();
+    // Fase A: no Supabase auth
     onNavigate?.();
     router.push("/login");
     router.refresh();
