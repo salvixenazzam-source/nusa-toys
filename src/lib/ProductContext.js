@@ -182,6 +182,95 @@ export function ProductProvider({ children }) {
     return true;
   }, [supabase]);
 
+  /* ── Diskon → Supabase ──────────────── */
+  const [diskonList, setDiskonList] = useState([]);
+  const [diskonLoading, setDiskonLoading] = useState(true);
+  const loadDiskon = useCallback(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from("diskon")
+      .select(`*, diskon_kategori (kategori), diskon_produk (produk_id)`)
+      .order("created_at", { ascending: false });
+    if (!error) {
+      setDiskonList(
+        data.map((d) => ({
+          ...d,
+          kategori_list: (d.diskon_kategori || []).map((k) => k.kategori),
+          produk_ids: (d.diskon_produk || []).map((p) => p.produk_id),
+        }))
+      );
+    }
+    setDiskonLoading(false);
+  }, [supabase]);
+  useEffect(() => { loadDiskon(); }, [loadDiskon]);
+
+  const addDiskon = useCallback(
+    async (diskon, kategoriList, produkIdList) => {
+      const { data, error } = await supabase
+        .from("diskon")
+        .insert(diskon)
+        .select()
+        .single();
+      if (error) return false;
+
+      // Insert relasi kategori
+      if (kategoriList && kategoriList.length > 0) {
+        const rows = kategoriList.map((k) => ({ diskon_id: data.id, kategori: k }));
+        await supabase.from("diskon_kategori").insert(rows);
+      }
+      // Insert relasi produk
+      if (produkIdList && produkIdList.length > 0) {
+        const rows = produkIdList.map((pid) => ({ diskon_id: data.id, produk_id: pid }));
+        await supabase.from("diskon_produk").insert(rows);
+      }
+
+      await loadDiskon();
+      return true;
+    },
+    [supabase, loadDiskon]
+  );
+
+  const updateDiskon = useCallback(
+    async (id, diskonData, kategoriList, produkIdList) => {
+      const { error } = await supabase.from("diskon").update(diskonData).eq("id", id);
+      if (error) return false;
+
+      // Replace relasi
+      await supabase.from("diskon_kategori").delete().eq("diskon_id", id);
+      if (kategoriList && kategoriList.length > 0) {
+        await supabase.from("diskon_kategori").insert(
+          kategoriList.map((k) => ({ diskon_id: id, kategori: k }))
+        );
+      }
+      await supabase.from("diskon_produk").delete().eq("diskon_id", id);
+      if (produkIdList && produkIdList.length > 0) {
+        await supabase.from("diskon_produk").insert(
+          produkIdList.map((pid) => ({ diskon_id: id, produk_id: pid }))
+        );
+      }
+
+      await loadDiskon();
+      return true;
+    },
+    [supabase, loadDiskon]
+  );
+
+  const toggleDiskon = useCallback(
+    async (id, aktif) => {
+      await supabase.from("diskon").update({ aktif }).eq("id", id);
+      setDiskonList((prev) => prev.map((d) => (d.id === id ? { ...d, aktif } : d)));
+    },
+    [supabase]
+  );
+
+  const deleteDiskon = useCallback(
+    async (id) => {
+      await supabase.from("diskon").delete().eq("id", id);
+      setDiskonList((prev) => prev.filter((d) => d.id !== id));
+    },
+    [supabase]
+  );
+
   /* ── Target Omzet ───────────────────── */
   const [targetOmzet, setTargetOmzet] = useState(2000000);
 
@@ -193,6 +282,7 @@ export function ProductProvider({ children }) {
         customers, upsertCustomer, updateCustomer,
         keuangan, addKeuangan,
         purchases, purchasesLoading, addPurchase,
+        diskonList, diskonLoading, addDiskon, updateDiskon, toggleDiskon, deleteDiskon, loadDiskon,
         targetOmzet, setTargetOmzet,
         getHargaByChannel, nextInvoice,
       }}

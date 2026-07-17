@@ -9,6 +9,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: "📊" },
   { href: "/produk", label: "Produk", icon: "📦" },
+  { href: "/diskon", label: "Diskon", icon: "🏷️" },
   { href: "/inventory", label: "Inventory", icon: "📋" },
   { href: "/pembelian", label: "Pembelian", icon: "🛒" },
   { href: "/penjualan", label: "Penjualan", icon: "💰" },

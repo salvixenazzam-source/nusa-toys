@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useStore } from "@/lib/ProductContext";
 import { fmtDate } from "@/lib/helpers";
+import { hitungDiskon } from "@/lib/diskon";
 
 /* ── Helpers ─────────────────────────────────────────────── */
 const fmtRupiah = (n) =>
@@ -29,6 +30,7 @@ export default function PenjualanPage() {
     sales, salesLoading, addSale,
     customers, upsertCustomer,
     getHargaByChannel, nextInvoice,
+    diskonList,
   } = useStore();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -95,6 +97,25 @@ export default function PenjualanPage() {
   const laba = selectedProduct ? omzet - selectedProduct.hargaModal * qtyNum : 0;
   const stokTersedia = selectedProduct ? selectedProduct.stok : 0;
 
+  /* ─── Kalkulasi Diskon ───────────────── */
+  const diskonResult = useMemo(() => {
+    if (!selectedProduct || !qtyNum) return { diskon: null, hematIDR: 0, hargaFinal: 0, marginWarning: false };
+    // Filter diskon aktif untuk hari ini
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const aktif = diskonList.filter(
+      (d) => d.aktif && d.mulai <= todayDate && (!d.selesai || d.selesai >= todayDate)
+    );
+    // Hitung total cart (omzet + item lain jika multi-item — untuk sekarang single item)
+    const totalCart = omzet;
+    const hrg = getHargaByChannel(selectedProduct, form.channel);
+    return hitungDiskon(
+      { ...selectedProduct, hargaJual: hrg, id: selectedProduct.id, kategori: selectedProduct.kategori },
+      qtyNum,
+      totalCart,
+      aktif
+    );
+  }, [selectedProduct, qtyNum, omzet, form.channel, diskonList, getHargaByChannel]);
+
   /* ─── Buka modal ─────────────────────── */
   const openAdd = () => {
     setForm({ ...EMPTY_FORM, tanggal: today() });
@@ -132,8 +153,11 @@ export default function PenjualanPage() {
       hargaJual,
       ongkir: ongkirNum,
       omzet,
-      laba,
+      laba: laba - diskonResult.hematIDR,
       status: form.status,
+      diskon_id: diskonResult.diskon?.id || null,
+      diskon_nilai: diskonResult.hematIDR,
+      hemat: diskonResult.hematIDR,
     };
 
     const ok = await addSale(newSale);
@@ -262,6 +286,7 @@ export default function PenjualanPage() {
               <th className="px-3 py-3">Produk</th>
               <th className="px-3 py-3 text-center">Qty</th>
               <th className="px-3 py-3 text-right">Harga</th>
+              <th className="px-3 py-3 text-right">Diskon</th>
               <th className="px-3 py-3 text-right">Omzet</th>
               <th className="px-3 py-3 text-right">Laba</th>
               <th className="px-3 py-3 text-center">Status</th>
@@ -270,13 +295,13 @@ export default function PenjualanPage() {
           <tbody className="divide-y divide-stone-50">
             {salesLoading ? (
               <tr>
-                <td colSpan={10} className="px-4 py-16 text-center text-stone-400">
+                <td colSpan={11} className="px-4 py-16 text-center text-stone-400">
                   Memuat data dari database...
                 </td>
               </tr>
             ) : filteredSales.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-16 text-center text-stone-400">
+                <td colSpan={11} className="px-4 py-16 text-center text-stone-400">
                   Belum ada transaksi penjualan.
                 </td>
               </tr>
@@ -297,6 +322,9 @@ export default function PenjualanPage() {
                 </td>
                 <td className="px-3 py-3 text-center font-mono text-stone-700">{s.qty}</td>
                 <td className="px-3 py-3 text-right text-stone-600">{fmtRupiah(s.hargaJual)}</td>
+                <td className="px-3 py-3 text-right text-emerald-600 font-medium">
+                  {s.hemat > 0 ? `-${fmtRupiah(s.hemat)}` : "—"}
+                </td>
                 <td className="px-3 py-3 text-right font-medium text-stone-800">{fmtRupiah(s.omzet)}</td>
                 <td className="px-3 py-3 text-right font-medium text-emerald-600">{fmtRupiah(s.laba)}</td>
                 <td className="px-3 py-3 text-center">
@@ -449,13 +477,42 @@ export default function PenjualanPage() {
                     <span className="text-stone-500">Harga {form.channel}</span>
                     <span className="font-medium text-stone-700">{fmtRupiah(hargaJual)}</span>
                   </div>
+                  {diskonResult.diskon && (
+                    <>
+                      <div className="flex justify-between text-emerald-600">
+                        <span className="flex items-center gap-1">
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold">
+                            {diskonResult.diskon.jenis === "PERSEN"
+                              ? `${Number(diskonResult.diskon.nilai)}%`
+                              : diskonResult.diskon.jenis === "NOMINAL"
+                              ? "Rp OFF"
+                              : diskonResult.diskon.jenis === "BELI_X_GRATIS_Y"
+                              ? "BeliX"
+                              : "Bundle"}
+                          </span>
+                          {diskonResult.diskon.nama}
+                        </span>
+                        <span>-{fmtRupiah(diskonResult.hematIDR)}</span>
+                      </div>
+                      {diskonResult.marginWarning && (
+                        <p className="text-[10px] text-amber-600">⚠ Di bawah harga modal!</p>
+                      )}
+                    </>
+                  )}
                   <div className="flex justify-between">
-                    <span className="text-stone-500">Omzet ({qtyNum} × {fmtRupiah(hargaJual)})</span>
-                    <span className="font-semibold text-stone-800">{fmtRupiah(omzet)}</span>
+                    <span className="text-stone-500">
+                      Omzet ({qtyNum} × {fmtRupiah(hargaJual)})
+                      {diskonResult.diskon && <span className="text-stone-400 line-through ml-1">{fmtRupiah(omzet)}</span>}
+                    </span>
+                    <span className="font-semibold text-stone-800">
+                      {fmtRupiah(diskonResult.diskon ? diskonResult.hargaFinal : omzet)}
+                    </span>
                   </div>
                   <div className="flex justify-between border-t border-stone-200 pt-2">
                     <span className="text-stone-500">Estimasi Laba</span>
-                    <span className="font-semibold text-emerald-600">{fmtRupiah(laba)}</span>
+                    <span className={`font-semibold ${diskonResult.marginWarning ? "text-amber-600" : "text-emerald-600"}`}>
+                      {fmtRupiah(laba - diskonResult.hematIDR)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-stone-400">Stok tersedia</span>

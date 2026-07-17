@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useProducts } from "@/lib/ProductContext";
 
 const EMPTY_FORM = {
@@ -53,7 +53,7 @@ function StackLabel({ text }) {
 
 /* ── Komponen Utama ──────────────────────────────────────── */
 export default function ProdukPage() {
-  const { products, productsLoading, addProduct, updateProduct, deleteProduct } = useProducts();
+  const { products, productsLoading, addProduct, updateProduct, deleteProduct, diskonList } = useProducts();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSku, setEditingSku] = useState(null); // null = tambah baru
   const [form, setForm] = useState(EMPTY_FORM);
@@ -186,6 +186,25 @@ export default function ProdukPage() {
   const allKategori = [...new Set(products.map((p) => p.kategori).filter(Boolean))].sort();
   const allSupplier = [...new Set(products.map((p) => p.supplier).filter(Boolean))].sort();
 
+  /* ─── Mapping diskon aktif per produk ── */
+  const diskonPerProduk = useMemo(() => {
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const aktif = diskonList.filter(
+      (d) => d.aktif && d.mulai <= todayDate && (!d.selesai || d.selesai >= todayDate) && (d.kuota === null || d.kuota_terpakai < d.kuota)
+    );
+    const map = {};
+    for (const p of products) {
+      const match = aktif.find((d) => {
+        if (d.berlaku_untuk === "SEMUA") return true;
+        if (d.berlaku_untuk === "KATEGORI") return (d.kategori_list || []).includes(p.kategori);
+        if (d.berlaku_untuk === "SKU") return (d.produk_ids || []).includes(p.id);
+        return false;
+      });
+      if (match) map[p.id || p.sku] = match;
+    }
+    return map;
+  }, [products, diskonList]);
+
   /* ─── Render ─────────────────────────── */
   return (
     <div className="px-4 py-6 md:px-10 md:py-10">
@@ -281,19 +300,20 @@ export default function ProdukPage() {
               <th className="px-2 py-3 text-center"><StackLabel text="Stok" /></th>
               <th className="px-2 py-3 text-center"><StackLabel text="Min Stok" /></th>
               <th className="px-2 py-3 text-center"><StackLabel text="Status" /></th>
+              <th className="px-2 py-3 text-center"><StackLabel text="Diskon" /></th>
               <th className="px-2 py-3 text-center"><StackLabel text="Aksi" /></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-50">
             {productsLoading ? (
               <tr>
-                <td colSpan={13} className="px-4 py-16 text-center text-stone-400">
+                <td colSpan={14} className="px-4 py-16 text-center text-stone-400">
                   Memuat data dari database...
                 </td>
               </tr>
             ) : filteredProducts.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-4 py-16 text-center text-stone-400">
+                <td colSpan={14} className="px-4 py-16 text-center text-stone-400">
                   {products.length === 0
                     ? "Belum ada produk. Klik \"Tambah Produk\" untuk memulai."
                     : "Tidak ada produk yang cocok dengan filter."}
@@ -339,6 +359,17 @@ export default function ProdukPage() {
                     >
                       {p.status}
                     </span>
+                  </td>
+                  <td className="px-2 py-3 text-center">
+                    {diskonPerProduk[p.id || p.sku] ? (
+                      <span className="inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                        {diskonPerProduk[p.id || p.sku].jenis === "PERSEN"
+                          ? `${Number(diskonPerProduk[p.id || p.sku].nilai)}%`
+                          : "PROMO"}
+                      </span>
+                    ) : (
+                      <span className="text-stone-300">—</span>
+                    )}
                   </td>
                   <td className="px-2 py-3">
                     <div className="flex items-center justify-center gap-1">
