@@ -16,6 +16,8 @@ const DB_TO_JS = {
   harga_jual: "hargaJual",
   no_wa: "noWa",
   terakhir_beli: "terakhirBeli",
+  diskon_id: "diskonId",
+  diskon_nilai: "diskonNilai",
 };
 
 const JS_TO_DB = {
@@ -30,6 +32,8 @@ const JS_TO_DB = {
   hargaJual: "harga_jual",
   noWa: "no_wa",
   terakhirBeli: "terakhir_beli",
+  diskonId: "diskon_id",
+  diskonNilai: "diskon_nilai",
 };
 
 function toCamel(dbRow) {
