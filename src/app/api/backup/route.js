@@ -377,8 +377,18 @@ function pemToArrayBuffer(pem) {
 }
 
 async function writeToSheet(token, sheetId, sheetName, range, rows) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!${range}?valueInputOption=USER_ENTERED`;
+  // 1. Clear dulu seluruh isi sheet biar gak numpuk sisa lama
+  const clearRange = `${sheetName}!A1:Z1000`;
+  const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(clearRange)}:clear`;
+  await fetch(clearUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
+  // 2. Tulis data baru
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetName)}!${range}?valueInputOption=USER_ENTERED`;
   const res = await fetch(url, {
     method: "PUT",
     headers: {
