@@ -200,7 +200,7 @@ export default function DashboardPage() {
   return (
     <div className="px-4 py-6 md:px-10 md:py-10">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-800">Dashboard</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-800">Dashboard v2</h1>
         <p className="mt-1 text-sm text-stone-500">
           Ringkasan kondisi bisnis — penjualan, stok, pelanggan, dan keuangan.
         </p>
