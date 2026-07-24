@@ -40,6 +40,31 @@ export default function LaporanPage() {
   const [dateFrom, setDateFrom] = useState(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState(today());
 
+  /* ─── Backup ────────────────────────── */
+  const [backingUp, setBackingUp] = useState(false);
+  const [backupResult, setBackupResult] = useState(null);
+
+  const handleBackup = async () => {
+    setBackingUp(true);
+    setBackupResult(null);
+    try {
+      const res = await fetch("/api/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ periode_start: dateFrom, periode_end: dateTo }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBackupResult({ type: "success", message: data.message || "Backup berhasil!", detail: data });
+      } else {
+        setBackupResult({ type: "error", message: data.error || "Gagal backup" });
+      }
+    } catch (err) {
+      setBackupResult({ type: "error", message: "Gagal terhubung ke server" });
+    }
+    setBackingUp(false);
+  };
+
   const setQuick = (key) => {
     const now = new Date();
     setPeriode(key);
@@ -186,7 +211,47 @@ export default function LaporanPage() {
             Profit &amp; Loss — ringkasan performa bisnis.
           </p>
         </div>
+        <button
+          onClick={handleBackup}
+          disabled={backingUp}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-stone-700 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-stone-800 disabled:opacity-60 self-start sm:self-auto"
+        >
+          {backingUp ? (
+            <>Menyimpan...</>
+          ) : (
+            <>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Backup
+            </>
+          )}
+        </button>
       </div>
+
+      {/* Notifikasi backup */}
+      {backupResult && (
+        <div
+          className={`mt-3 rounded-xl border p-3 text-sm ${
+            backupResult.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          <p className="font-medium">{backupResult.message}</p>
+          {backupResult.type === "success" && backupResult.detail && (
+            <div className="flex flex-wrap gap-4 text-xs mt-1">
+              <span>Cashflow: {backupResult.detail.cashflow?.rows || 0} transaksi</span>
+              {backupResult.detail.sheets?.status === "success" && (
+                <span className="text-emerald-500 font-medium">Google Sheets ✓</span>
+              )}
+              {backupResult.detail.sheets?.status === "skipped" && (
+                <span className="text-stone-400">Sheets: belum dikonfigurasi</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Filter Periode ─────────────────────────────────── */}
       <div className="mt-6 rounded-2xl border border-stone-200 bg-white p-5">
