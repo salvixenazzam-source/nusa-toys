@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 const PUBLIC_PREFIXES = ["/login", "/_next", "/favicon.ico", "/logo.png"];
 
 export default async function proxy(request) {
-  let response = NextResponse.next({ request });
+  let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -15,13 +15,10 @@ export default async function proxy(request) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value);
+            supabaseResponse.cookies.set(name, value, options);
+          });
         },
       },
     }
@@ -48,7 +45,7 @@ export default async function proxy(request) {
     return NextResponse.redirect(new URL(redirectTo, request.url));
   }
 
-  return response;
+  return supabaseResponse;
 }
 
 export const config = {

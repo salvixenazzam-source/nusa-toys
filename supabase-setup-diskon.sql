@@ -64,3 +64,18 @@ CREATE POLICY "Public read"   ON diskon_produk FOR SELECT  TO anon, authenticate
 CREATE POLICY "Public insert" ON diskon_produk FOR INSERT  TO anon, authenticated WITH CHECK (true);
 CREATE POLICY "Public update" ON diskon_produk FOR UPDATE  TO anon, authenticated USING (true);
 CREATE POLICY "Public delete" ON diskon_produk FOR DELETE  TO anon, authenticated USING (true);
+
+-- 9. Function RPC untuk increment kuota_terpakai secara atomik
+CREATE OR REPLACE FUNCTION increment_kuota_terpakai(p_diskon_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+  new_val INTEGER;
+BEGIN
+  UPDATE diskon
+  SET kuota_terpakai = COALESCE(kuota_terpakai, 0) + 1,
+      updated_at = NOW()
+  WHERE id = p_diskon_id
+  RETURNING kuota_terpakai INTO new_val;
+  RETURN new_val;
+END;
+$$ LANGUAGE plpgsql;

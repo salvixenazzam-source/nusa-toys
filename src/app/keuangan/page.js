@@ -66,8 +66,9 @@ export default function KeuanganPage() {
       });
     });
 
-    // Manual
+    // Manual (skip auto-generated dari pembelian/penjualan)
     keuangan.forEach((k) => {
+      if (k.kategori === "Penjualan" || k.kategori === "Pembelian Stok") return;
       items.push({ ...k, sumber: "Manual", id: `manual-${k.id}` });
     });
 
@@ -114,7 +115,7 @@ export default function KeuanganPage() {
       tipe: form.tipe,
       kategori: form.kategori,
       jumlah: Number(form.jumlah),
-      keterangan: form.keterangan.trim(),
+      keterangan: form.keterangan.trim().replace(/<[^>]*>/g, ""),
     });
     setSaving(false);
     if (ok) setModalOpen(false);

@@ -50,7 +50,7 @@ export default function PengaturanPage() {
                 setSaved(false);
               }}
               onBlur={() => {
-                if (!inputValue || inputValue === "0") {
+                if (!inputValue) {
                   setInputValue(String(targetOmzet));
                 }
               }}

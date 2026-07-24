@@ -66,7 +66,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "
 
 /* ── Komponen Utama ──────────────────────────────────────── */
 export default function DashboardPage() {
-  const { products, sales, customers, keuangan, targetOmzet, diskonList } = useStore();
+  const { products, sales, customers, keuangan, purchases, targetOmzet, diskonList } = useStore();
   const [chartMode, setChartMode] = useState("bulanan"); // "bulanan" | "harian"
 
   /* ─── Hitung metrik ──────────────────── */
@@ -124,14 +124,14 @@ export default function DashboardPage() {
       .sort((a, b) => b.omzet - a.omzet);
   }, [sales]);
 
-  /* Keuangan — gabungan manual + purchases */
+  /* Keuangan — gabungan manual + purchases (skip auto-generated) */
   const totalPengeluaran = useMemo(() => {
-    const manual = keuangan.filter((k) => k.tipe === "Pengeluaran").reduce((s, k) => s + k.jumlah, 0);
+    const manual = keuangan.filter((k) => k.tipe === "Pengeluaran" && k.kategori !== "Pembelian Stok").reduce((s, k) => s + k.jumlah, 0);
     const beli = purchases.reduce((s, p) => s + p.total, 0);
     return manual + beli;
   }, [keuangan, purchases]);
   const pemasukanManual = useMemo(
-    () => keuangan.filter((k) => k.tipe === "Pemasukan").reduce((s, k) => s + k.jumlah, 0),
+    () => keuangan.filter((k) => k.tipe === "Pemasukan" && k.kategori !== "Penjualan").reduce((s, k) => s + k.jumlah, 0),
     [keuangan]
   );
   const totalPemasukan = totalOmzet + pemasukanManual;

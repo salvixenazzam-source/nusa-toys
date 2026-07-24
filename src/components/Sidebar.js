@@ -14,6 +14,7 @@ const menuItems = [
   { href: "/pembelian", label: "Pembelian", icon: "🛒" },
   { href: "/penjualan", label: "Penjualan", icon: "💰" },
   { href: "/keuangan", label: "Keuangan", icon: "💵" },
+  { href: "/laporan", label: "Laporan", icon: "📈" },
   { href: "/crm", label: "CRM", icon: "👥" },
   { href: "/pengaturan", label: "Pengaturan", icon: "⚙️" },
 ];

@@ -3,8 +3,9 @@
  */
 export function fmtDate(dateStr) {
   if (!dateStr) return "—";
+  // Validasi format YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
   const parts = dateStr.split("-");
-  if (parts.length !== 3) return dateStr;
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
 

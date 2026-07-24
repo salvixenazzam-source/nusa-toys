@@ -109,12 +109,18 @@ export function ProductProvider({ children }) {
     return true;
   }, [supabase]);
   const updateStock = useCallback(async (sku, delta) => {
-    const { data } = await supabase.from("produk").select("stok").eq("sku", sku).single();
-    if (!data) return false;
-    const newStok = data.stok + delta;
-    const { error } = await supabase.from("produk").update({ stok: newStok }).eq("sku", sku);
-    if (error) return false;
-    setProducts((prev) => prev.map((p) => (p.sku === sku ? { ...p, stok: newStok } : p)));
+    // Atomic: gunakan RPC (stored procedure) untuk menghindari race condition
+    const { data, error } = await supabase.rpc("update_stok", {
+      sku_param: sku,
+      delta_param: delta,
+    });
+
+    // RPC returns NULL jika stok tidak cukup atau SKU tidak ditemukan
+    if (error || data === null) return false;
+
+    setProducts((prev) =>
+      prev.map((p) => (p.sku === sku ? { ...p, stok: data } : p))
+    );
     return true;
   }, [supabase]);
 
@@ -131,6 +137,16 @@ export function ProductProvider({ children }) {
     const { data, error } = await supabase.from("pembelian").insert(toSnake(item)).select().single();
     if (error) return false;
     setPurchases((prev) => [toCamel(data), ...prev]);
+
+    // Catat otomatis ke tabel keuangan (Pengeluaran)
+    await supabase.from("keuangan").insert({
+      tanggal: item.tanggal,
+      tipe: "Pengeluaran",
+      kategori: "Pembelian Stok",
+      jumlah: item.total,
+      keterangan: `${item.supplier} — ${item.namaProduk}`,
+    });
+
     return true;
   }, [supabase]);
 
@@ -147,6 +163,59 @@ export function ProductProvider({ children }) {
     const { data, error } = await supabase.from("penjualan").insert(toSnake(sale)).select().single();
     if (error) return false;
     setSales((prev) => [toCamel(data), ...prev]);
+
+    // Catat otomatis ke tabel keuangan (Pemasukan)
+    await supabase.from("keuangan").insert({
+      tanggal: sale.tanggal,
+      tipe: "Pemasukan",
+      kategori: "Penjualan",
+      jumlah: sale.omzet,
+      keterangan: `${sale.invoice} — ${sale.pembeli}`,
+    });
+
+    // Atomic: increment kuota_terpakai dengan read-then-write (browser-safe)
+    if (sale.diskon_id) {
+      try {
+        // Baca nilai saat ini dulu
+        const { data: currentDiskon, error: readError } = await supabase
+          .from("diskon")
+          .select("kuota_terpakai, kuota")
+          .eq("id", sale.diskon_id)
+          .single();
+
+        if (!readError && currentDiskon) {
+          const kuotaTersedia =
+            currentDiskon.kuota === null ||
+            currentDiskon.kuota_terpakai < currentDiskon.kuota;
+
+          if (kuotaTersedia) {
+            const newKuotaTerpakai = (currentDiskon.kuota_terpakai || 0) + 1;
+            const { data: updatedDiskon, error: kuotaError } = await supabase
+              .from("diskon")
+              .update({
+                kuota_terpakai: newKuotaTerpakai,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", sale.diskon_id)
+              .select("kuota_terpakai")
+              .single();
+
+            if (!kuotaError && updatedDiskon) {
+              setDiskonList((prev) =>
+                prev.map((d) =>
+                  d.id === sale.diskon_id
+                    ? { ...d, kuota_terpakai: updatedDiskon.kuota_terpakai }
+                    : d
+                )
+              );
+            }
+          }
+        }
+      } catch (_) {
+        console.warn("Gagal tracking kuota diskon:", sale.diskon_id);
+      }
+    }
+
     return true;
   }, [supabase]);
 
@@ -158,12 +227,12 @@ export function ProductProvider({ children }) {
   }, [supabase]);
   useEffect(() => { loadCustomers(); }, [loadCustomers]);
   const upsertCustomer = useCallback(async (nama, tanggal) => {
-    const { data: existing } = await supabase.from("pelanggan").select("id").ilike("nama", nama).maybeSingle();
+    const { data: existing } = await supabase.from("pelanggan").select("id").eq("nama_lower", nama.toLowerCase()).maybeSingle();
     if (existing) {
       await supabase.from("pelanggan").update({ terakhir_beli: tanggal }).eq("id", existing.id);
       setCustomers((prev) => prev.map((c) => (c.id === existing.id ? { ...c, terakhirBeli: tanggal } : c)));
     } else {
-      const { data: inserted, error } = await supabase.from("pelanggan").insert({ nama, terakhir_beli: tanggal }).select().single();
+      const { data: inserted, error } = await supabase.from("pelanggan").insert({ nama, nama_lower: nama.toLowerCase(), terakhir_beli: tanggal }).select().single();
       if (!error && inserted) setCustomers((prev) => [...prev, toCamel(inserted)]);
     }
   }, [supabase]);
