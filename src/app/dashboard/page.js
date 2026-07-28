@@ -66,7 +66,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "
 
 /* ── Komponen Utama ──────────────────────────────────────── */
 export default function DashboardPage() {
-  const { products, sales, customers, keuangan, purchases, targetOmzet, diskonList } = useStore();
+  const { products, sales, customers, keuangan, purchases, targetOmzet } = useStore();
   const [chartMode, setChartMode] = useState("bulanan"); // "bulanan" | "harian"
 
   /* ─── Hitung metrik ──────────────────── */
@@ -136,16 +136,6 @@ export default function DashboardPage() {
   );
   const totalPemasukan = totalOmzet + pemasukanManual;
   const labaBersih = totalPemasukan - totalPengeluaran;
-
-  /* ─── Diskon ─────────────────────────── */
-  const diskonAktif = useMemo(() => {
-    const todayDate = new Date().toISOString().slice(0, 10);
-    return diskonList.filter(
-      (d) => d.aktif && d.mulai <= todayDate && (!d.selesai || d.selesai >= todayDate)
-    ).length;
-  }, [diskonList]);
-
-  const totalHemat = useMemo(() => sales.reduce((s, x) => s + (x.hemat || 0), 0), [sales]);
 
   /* ─── Data tren Bulanan (6 bulan terakhir) ─────────────── */
   const monthlyData = useMemo(() => {
@@ -301,8 +291,6 @@ export default function DashboardPage() {
           <StatCard label="Total Laba" value={fmtRupiah(totalLaba)} />
           <StatCard label="Transaksi" value={totalTransaksi} sub="penjualan" />
           <StatCard label="Pelanggan" value={customers.length} sub={`${repeatBuyers} repeat`} />
-          <StatCard label="Diskon Aktif" value={diskonAktif} sub="berlaku hari ini" accent />
-          <StatCard label="Total Hemat" value={fmtRupiah(totalHemat)} sub="dari diskon" />
         </div>
       </section>
 

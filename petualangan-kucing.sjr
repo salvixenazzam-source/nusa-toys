@@ -1,0 +1,174 @@
+{
+  "name": "Petualangan Si Kucing",
+  "version": "1.0",
+  "pages": [
+    {
+      "page": "Sendiri di Rumah",
+      "background": "House",
+      "sprites": [
+        {
+          "name": "Cat",
+          "x": 50,
+          "y": 200,
+          "scale": 80,
+          "direction": 90,
+          "scripts": [
+            {
+              "blocks": [
+                {"opcode": "when_tapped"},
+                {"opcode": "say", "text": "Aku bosan..."},
+                {"opcode": "move_right", "steps": 50},
+                {"opcode": "say", "text": "Ayo cari teman!"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Bertemu Kelinci",
+      "background": "Grass",
+      "sprites": [
+        {
+          "name": "Cat",
+          "x": 80,
+          "y": 200,
+          "scale": 80,
+          "direction": 90,
+          "scripts": [
+            {
+              "blocks": [
+                {"opcode": "when_tapped"},
+                {"opcode": "say", "text": "Halo!"},
+                {"opcode": "move_right", "steps": 30},
+                {"opcode": "say", "text": "Mau main?"}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Rabbit",
+          "x": 320,
+          "y": 210,
+          "scale": 80,
+          "direction": -90,
+          "scripts": [
+            {
+              "blocks": [
+                {"opcode": "when_tapped"},
+                {"opcode": "say", "text": "Hai!"},
+                {"opcode": "repeat", "times": 3, "blocks": [
+                  {"opcode": "move_up", "steps": 20},
+                  {"opcode": "move_down", "steps": 20}
+                ]},
+                {"opcode": "say", "text": "Ayo!"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Terbang ke Langit",
+      "background": "Sky",
+      "sprites": [
+        {
+          "name": "Cat",
+          "x": 100,
+          "y": 220,
+          "scale": 80,
+          "direction": 90,
+          "scripts": [
+            {
+              "blocks": [
+                {"opcode": "when_tapped"},
+                {"opcode": "say", "text": "Wow!"}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Bird",
+          "x": 200,
+          "y": 300,
+          "scale": 80,
+          "direction": 90,
+          "scripts": [
+            {
+              "blocks": [
+                {"opcode": "when_tapped"},
+                {"opcode": "say", "text": "Ikut aku!"},
+                {"opcode": "repeat", "times": 5, "blocks": [
+                  {"opcode": "move_up", "steps": 15}
+                ]},
+                {"opcode": "say", "text": "Asyik!"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Pesta Hutan",
+      "background": "Night",
+      "sprites": [
+        {
+          "name": "Cat",
+          "x": 100,
+          "y": 200,
+          "scale": 80,
+          "direction": 90,
+          "scripts": [
+            {
+              "blocks": [
+                {"opcode": "when_tapped"},
+                {"opcode": "repeat", "times": 5, "blocks": [
+                  {"opcode": "move_right", "steps": 20},
+                  {"opcode": "move_left", "steps": 20}
+                ]},
+                {"opcode": "say", "text": "Hore!"}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Rabbit",
+          "x": 250,
+          "y": 200,
+          "scale": 80,
+          "direction": 90,
+          "scripts": [
+            {
+              "blocks": [
+                {"opcode": "when_tapped"},
+                {"opcode": "repeat", "times": 5, "blocks": [
+                  {"opcode": "move_up", "steps": 15},
+                  {"opcode": "move_down", "steps": 15}
+                ]},
+                {"opcode": "say", "text": "Senangnya!"}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Bird",
+          "x": 400,
+          "y": 150,
+          "scale": 80,
+          "direction": 90,
+          "scripts": [
+            {
+              "blocks": [
+                {"opcode": "when_tapped"},
+                {"opcode": "repeat", "times": 3, "blocks": [
+                  {"opcode": "move_up", "steps": 20}
+                ]},
+                {"opcode": "say", "text": "Merdeka!"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
