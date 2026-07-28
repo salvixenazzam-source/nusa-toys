@@ -158,6 +158,7 @@ export default function PenjualanPage() {
       diskon_id: diskonResult.diskon?.id || null,
       diskon_nilai: diskonResult.hematIDR,
       hemat: diskonResult.hematIDR,
+      hargaModal: selectedProduct?.hargaModal || 0,
     };
 
     const ok = await addSale(newSale);

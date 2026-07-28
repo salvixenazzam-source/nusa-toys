@@ -11,7 +11,7 @@ const fmtRupiah = (n) =>
 const today = () => new Date().toISOString().slice(0, 10);
 
 const TIPE = ["Pemasukan", "Pengeluaran"];
-const KATEGORI_PENGELUARAN = ["Operasional", "Gaji", "Pajak", "Beli Stok", "Lainnya"];
+const KATEGORI_PENGELUARAN = ["Operasional", "Gaji", "Pajak", "Beli Stok", "HPP", "Lainnya"];
 const FILTER_TABS = ["Semua", "Penjualan", "Operasional"];
 
 const EMPTY_FORM = {
@@ -53,9 +53,9 @@ export default function KeuanganPage() {
       });
     });
 
-    // Manual (skip auto-generated dari penjualan)
+    // Manual (skip auto-generated dari penjualan & pembelian stok legacy)
     keuangan.forEach((k) => {
-      if (k.kategori === "Penjualan") return;
+      if (k.kategori === "Penjualan" || k.kategori === "Pembelian Stok") return;
       items.push({ ...k, sumber: "Manual", id: `manual-${k.id}` });
     });
 

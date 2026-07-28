@@ -133,6 +133,23 @@ export function ProductProvider({ children }) {
     setPurchasesLoading(false);
   }, [supabase]);
   useEffect(() => { loadPurchases(); }, [loadPurchases]);
+
+  /* ── Keuangan → Supabase ─────────────── */
+  const [keuangan, setKeuangan] = useState([]);
+  const loadKeuangan = useCallback(async () => {
+    const { data, error } = await supabase.from("keuangan").select("*").order("tanggal", { ascending: false });
+    if (!error) setKeuangan(data);
+  }, [supabase]);
+  useEffect(() => { loadKeuangan(); }, [loadKeuangan]);
+
+  /* ── Persediaan → Supabase ───────────── */
+  const [persediaan, setPersediaan] = useState([]);
+  const loadPersediaan = useCallback(async () => {
+    const { data, error } = await supabase.from("persediaan").select("*").order("tanggal", { ascending: false });
+    if (!error) setPersediaan(data);
+  }, [supabase]);
+  useEffect(() => { loadPersediaan(); }, [loadPersediaan]);
+
   const addPurchase = useCallback(async (item) => {
     const { data, error } = await supabase.from("pembelian").insert(toSnake(item)).select().single();
     if (error) return false;
@@ -170,12 +187,6 @@ export function ProductProvider({ children }) {
   }, [supabase, loadKeuangan, loadPersediaan]);
 
   /* ── Persediaan → Supabase ───────────── */
-  const [persediaan, setPersediaan] = useState([]);
-  const loadPersediaan = useCallback(async () => {
-    const { data, error } = await supabase.from("persediaan").select("*").order("tanggal", { ascending: false });
-    if (!error) setPersediaan(data);
-  }, [supabase]);
-  useEffect(() => { loadPersediaan(); }, [loadPersediaan]);
   const addPersediaan = useCallback(async (item) => {
     const { data, error } = await supabase.from("persediaan").insert(item).select().single();
     if (error) return false;
@@ -205,6 +216,33 @@ export function ProductProvider({ children }) {
       jumlah: sale.omzet,
       keterangan: `${sale.invoice} — ${sale.pembeli}`,
     });
+
+    // Catat HPP sebagai Pengeluaran
+    const hpp = (sale.qty || 0) * (sale.hargaModal || 0);
+    if (hpp > 0) {
+      await supabase.from("keuangan").insert({
+        tanggal: sale.tanggal,
+        tipe: "Pengeluaran",
+        kategori: "HPP",
+        jumlah: hpp,
+        keterangan: `HPP ${sale.namaProduk || ''} (${sale.qty || 0} pcs)`,
+      });
+    }
+
+    // Catat KELUAR dari persediaan
+    await supabase.from("persediaan").insert({
+      tanggal: sale.tanggal,
+      tipe: "KELUAR",
+      kategori: "Penjualan",
+      jumlah: hpp,
+      qty: sale.qty || 0,
+      sku: sale.sku || '',
+      keterangan: `Terjual ${sale.qty || 0} × ${sale.namaProduk || ''}`,
+    });
+
+    // Refresh state
+    await loadKeuangan();
+    await loadPersediaan();
 
     // Atomic: increment kuota_terpakai dengan read-then-write (browser-safe)
     if (sale.diskon_id) {
@@ -250,7 +288,7 @@ export function ProductProvider({ children }) {
     }
 
     return true;
-  }, [supabase]);
+  }, [supabase, loadKeuangan, loadPersediaan]);
 
   /* ── Pelanggan → Supabase ────────────── */
   const [customers, setCustomers] = useState([]);
@@ -275,12 +313,6 @@ export function ProductProvider({ children }) {
   }, [supabase]);
 
   /* ── Keuangan → Supabase ─────────────── */
-  const [keuangan, setKeuangan] = useState([]);
-  const loadKeuangan = useCallback(async () => {
-    const { data, error } = await supabase.from("keuangan").select("*").order("tanggal", { ascending: false });
-    if (!error) setKeuangan(data);
-  }, [supabase]);
-  useEffect(() => { loadKeuangan(); }, [loadKeuangan]);
   const addKeuangan = useCallback(async (item) => {
     const { data, error } = await supabase.from("keuangan").insert(item).select().single();
     if (error) return false;
