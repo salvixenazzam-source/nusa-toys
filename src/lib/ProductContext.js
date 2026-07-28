@@ -138,15 +138,48 @@ export function ProductProvider({ children }) {
     if (error) return false;
     setPurchases((prev) => [toCamel(data), ...prev]);
 
-    // Catat otomatis ke tabel keuangan (Pengeluaran)
-    await supabase.from("keuangan").insert({
+    // Catat otomatis ke tabel persediaan (Aset — MASUK, nilai produk saja tanpa ongkir)
+    const nilaiProduk = item.qty * item.hargaSatuan;
+    await supabase.from("persediaan").insert({
       tanggal: item.tanggal,
-      tipe: "Pengeluaran",
-      kategori: "Pembelian Stok",
-      jumlah: item.total,
-      keterangan: `${item.supplier} — ${item.namaProduk}`,
+      tipe: "MASUK",
+      kategori: "Pembelian",
+      jumlah: nilaiProduk,
+      qty: item.qty,
+      sku: item.sku,
+      supplier: item.supplier,
+      keterangan: `Pembelian ${item.namaProduk}`,
     });
 
+    // Ongkir dicatat sebagai Pengeluaran operasional (bukan aset)
+    const ongkir = Number(item.ongkir) || 0;
+    if (ongkir > 0) {
+      await supabase.from("keuangan").insert({
+        tanggal: item.tanggal,
+        tipe: "Pengeluaran",
+        kategori: "Ongkir",
+        jumlah: ongkir,
+        keterangan: `Ongkir pembelian ${item.namaProduk} — ${item.supplier}`,
+      });
+      await loadKeuangan(); // refresh state lokal
+    }
+
+    await loadPersediaan(); // refresh state lokal
+
+    return true;
+  }, [supabase, loadKeuangan, loadPersediaan]);
+
+  /* ── Persediaan → Supabase ───────────── */
+  const [persediaan, setPersediaan] = useState([]);
+  const loadPersediaan = useCallback(async () => {
+    const { data, error } = await supabase.from("persediaan").select("*").order("tanggal", { ascending: false });
+    if (!error) setPersediaan(data);
+  }, [supabase]);
+  useEffect(() => { loadPersediaan(); }, [loadPersediaan]);
+  const addPersediaan = useCallback(async (item) => {
+    const { data, error } = await supabase.from("persediaan").insert(item).select().single();
+    if (error) return false;
+    setPersediaan((prev) => [data, ...prev]);
     return true;
   }, [supabase]);
 
@@ -354,6 +387,7 @@ export function ProductProvider({ children }) {
         sales, salesLoading, addSale,
         customers, upsertCustomer, updateCustomer,
         keuangan, addKeuangan,
+        persediaan, addPersediaan,
         purchases, purchasesLoading, addPurchase,
         diskonList, diskonLoading, addDiskon, updateDiskon, toggleDiskon, deleteDiskon, loadDiskon,
         targetOmzet, setTargetOmzet,

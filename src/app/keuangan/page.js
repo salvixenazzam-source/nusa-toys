@@ -12,7 +12,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const TIPE = ["Pemasukan", "Pengeluaran"];
 const KATEGORI_PENGELUARAN = ["Operasional", "Gaji", "Pajak", "Beli Stok", "Lainnya"];
-const FILTER_TABS = ["Semua", "Penjualan", "Pembelian", "Operasional"];
+const FILTER_TABS = ["Semua", "Penjualan", "Operasional"];
 
 const EMPTY_FORM = {
   tanggal: today(),
@@ -30,7 +30,7 @@ const SOURCE_COLORS = {
 
 /* ── Komponen Utama ──────────────────────────────────────── */
 export default function KeuanganPage() {
-  const { sales, purchases, keuangan, addKeuangan } = useStore();
+  const { sales, keuangan, persediaan, addKeuangan } = useStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
@@ -53,27 +53,14 @@ export default function KeuanganPage() {
       });
     });
 
-    // Pembelian → Pengeluaran
-    purchases.forEach((p) => {
-      items.push({
-        id: `beli-${p.id}`,
-        tanggal: p.tanggal,
-        tipe: "Pengeluaran",
-        kategori: "Pembelian Stok",
-        jumlah: p.total,
-        keterangan: `${p.supplier} — ${p.namaProduk}`,
-        sumber: "Pembelian",
-      });
-    });
-
-    // Manual (skip auto-generated dari pembelian/penjualan)
+    // Manual (skip auto-generated dari penjualan)
     keuangan.forEach((k) => {
-      if (k.kategori === "Penjualan" || k.kategori === "Pembelian Stok") return;
+      if (k.kategori === "Penjualan") return;
       items.push({ ...k, sumber: "Manual", id: `manual-${k.id}` });
     });
 
     return items.sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
-  }, [sales, purchases, keuangan]);
+  }, [sales, keuangan]);
 
   /* ─── Filter ─────────────────────────── */
   const filtered = useMemo(() => {
@@ -88,6 +75,13 @@ export default function KeuanganPage() {
     const pengeluaran = filtered.filter((t) => t.tipe === "Pengeluaran").reduce((s, t) => s + t.jumlah, 0);
     return { pemasukan, pengeluaran, laba: pemasukan - pengeluaran };
   }, [filtered]);
+
+  /* ─── Total Investasi Persediaan ──────── */
+  const totalPersediaan = useMemo(() => {
+    const masuk = persediaan.filter((p) => p.tipe === "MASUK").reduce((s, p) => s + Number(p.jumlah), 0);
+    const keluar = persediaan.filter((p) => p.tipe === "KELUAR").reduce((s, p) => s + Number(p.jumlah), 0);
+    return masuk - keluar;
+  }, [persediaan]);
 
   /* ─── Buka modal ────────────────────── */
   const openAdd = () => {
@@ -128,7 +122,7 @@ export default function KeuanganPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-stone-800">Keuangan</h1>
           <p className="mt-1 text-sm text-stone-500">
-            Seluruh transaksi bisnis — penjualan, pembelian, dan operasional.
+            Seluruh transaksi bisnis — penjualan dan operasional.
           </p>
         </div>
         <button
@@ -140,7 +134,20 @@ export default function KeuanganPage() {
       </div>
 
       {/* ── Ringkasan ─────────────────────────────────────── */}
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {/* ── Investasi Persediaan ──────────────────────────── */}
+      <div className="mt-6 rounded-2xl bg-amber-50 p-5 border border-amber-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-amber-600">Total Investasi Persediaan</p>
+            <p className="mt-1 text-xl font-semibold text-amber-700">{fmtRupiah(totalPersediaan)}</p>
+          </div>
+          <div className="text-right text-xs text-amber-500">
+            <p>{persediaan.filter(p => p.tipe === "MASUK").length} transaksi</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-2xl bg-emerald-50 p-5">
           <p className="text-xs font-medium uppercase tracking-wider text-emerald-600">Pemasukan</p>
           <p className="mt-1 text-xl font-semibold text-emerald-700">{fmtRupiah(summary.pemasukan)}</p>
@@ -226,6 +233,66 @@ export default function KeuanganPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* ── Tabel Persediaan ──────────────────────────────── */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-stone-800 mb-3">Investasi Persediaan</h2>
+        <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white">
+          <table className="w-full min-w-[700px] text-sm">
+            <thead>
+              <tr className="border-b border-stone-100 bg-stone-50 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                <th className="px-4 py-3">Tanggal</th>
+                <th className="px-4 py-3">Tipe</th>
+                <th className="px-4 py-3">Kategori</th>
+                <th className="px-4 py-3 text-right">Jumlah</th>
+                <th className="px-4 py-3 text-center">Qty</th>
+                <th className="px-4 py-3">SKU</th>
+                <th className="px-4 py-3">Supplier</th>
+                <th className="px-4 py-3">Keterangan</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-50">
+              {persediaan.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-16 text-center text-stone-400">
+                    Belum ada data persediaan.
+                  </td>
+                </tr>
+              )}
+              {persediaan.map((p) => (
+                <tr key={p.id} className="hover:bg-stone-50/60">
+                  <td className="px-4 py-3 text-stone-500 text-xs whitespace-nowrap">
+                    {fmtDate(p.tanggal)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                      p.tipe === "MASUK" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                    }`}>
+                      {p.tipe}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-stone-600 text-xs">{p.kategori}</td>
+                  <td className="px-4 py-3 text-right font-mono font-medium whitespace-nowrap text-stone-700">
+                    {fmtRupiah(Number(p.jumlah))}
+                  </td>
+                  <td className="px-4 py-3 text-center font-mono text-xs text-stone-500">
+                    {p.qty ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-stone-500">
+                    {p.sku || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-stone-500 text-xs">
+                    {p.supplier || "—"}
+                  </td>
+                  <td className="px-4 py-3 text-stone-500 text-xs max-w-[200px] truncate">
+                    {p.keterangan || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* ── Modal Form ────────────────────────────────────── */}
