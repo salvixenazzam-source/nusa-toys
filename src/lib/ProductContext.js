@@ -280,12 +280,13 @@ export function ProductProvider({ children }) {
   }, [supabase]);
   useEffect(() => { loadCustomers(); }, [loadCustomers]);
   const upsertCustomer = useCallback(async (nama, tanggal) => {
-    const { data: existing } = await supabase.from("pelanggan").select("id").eq("nama_lower", nama.toLowerCase()).maybeSingle();
+    // Cari existing by nama (case-insensitive via ilike)
+    const { data: existing } = await supabase.from("pelanggan").select("id").ilike("nama", nama).maybeSingle();
     if (existing) {
       await supabase.from("pelanggan").update({ terakhir_beli: tanggal }).eq("id", existing.id);
       setCustomers((prev) => prev.map((c) => (c.id === existing.id ? { ...c, terakhirBeli: tanggal } : c)));
     } else {
-      const { data: inserted, error } = await supabase.from("pelanggan").insert({ nama, nama_lower: nama.toLowerCase(), terakhir_beli: tanggal }).select().single();
+      const { data: inserted, error } = await supabase.from("pelanggan").insert({ nama, terakhir_beli: tanggal }).select().single();
       if (!error && inserted) setCustomers((prev) => [...prev, toCamel(inserted)]);
     }
   }, [supabase]);
