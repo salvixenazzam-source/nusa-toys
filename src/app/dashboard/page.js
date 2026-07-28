@@ -124,9 +124,9 @@ export default function DashboardPage() {
       .sort((a, b) => b.omzet - a.omzet);
   }, [sales]);
 
-  /* Keuangan — pengeluaran dari tabel keuangan (termasuk ongkir otomatis) */
+  /* Keuangan — pengeluaran dari tabel keuangan (exclude Pembelian Stok legacy, kini di persediaan) */
   const totalPengeluaran = useMemo(() => {
-    return keuangan.filter((k) => k.tipe === "Pengeluaran").reduce((s, k) => s + k.jumlah, 0);
+    return keuangan.filter((k) => k.tipe === "Pengeluaran" && k.kategori !== "Pembelian Stok").reduce((s, k) => s + k.jumlah, 0);
   }, [keuangan]);
   const pemasukanManual = useMemo(
     () => keuangan.filter((k) => k.tipe === "Pemasukan" && k.kategori !== "Penjualan").reduce((s, k) => s + k.jumlah, 0),
