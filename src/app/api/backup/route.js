@@ -1,7 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase-config";
 
 /* ── POST /api/backup ────────────────────────────────────── */
 export async function POST(request) {
@@ -16,7 +14,7 @@ export async function POST(request) {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     /* 1. Ambil data keuangan (cashflow) ───── */
     const { data: keuanganData, error: keuanganError } = await supabase
