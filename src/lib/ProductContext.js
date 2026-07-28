@@ -244,43 +244,22 @@ export function ProductProvider({ children }) {
     await loadKeuangan();
     await loadPersediaan();
 
-    // Atomic: increment kuota_terpakai dengan read-then-write (browser-safe)
+    // Atomic: increment kuota_terpakai via RPC (hindari race condition)
     if (sale.diskon_id) {
       try {
-        // Baca nilai saat ini dulu
-        const { data: currentDiskon, error: readError } = await supabase
-          .from("diskon")
-          .select("kuota_terpakai, kuota")
-          .eq("id", sale.diskon_id)
-          .single();
+        const { data: newKuotaTerpakai, error: rpcError } = await supabase.rpc(
+          "increment_kuota_diskon",
+          { diskon_id_param: sale.diskon_id }
+        );
 
-        if (!readError && currentDiskon) {
-          const kuotaTersedia =
-            currentDiskon.kuota === null ||
-            currentDiskon.kuota_terpakai < currentDiskon.kuota;
-
-          if (kuotaTersedia) {
-            const newKuotaTerpakai = (currentDiskon.kuota_terpakai || 0) + 1;
-            const { data: updatedDiskon, error: kuotaError } = await supabase
-              .from("diskon")
-              .update({
-                kuota_terpakai: newKuotaTerpakai,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", sale.diskon_id)
-              .select("kuota_terpakai")
-              .single();
-
-            if (!kuotaError && updatedDiskon) {
-              setDiskonList((prev) =>
-                prev.map((d) =>
-                  d.id === sale.diskon_id
-                    ? { ...d, kuota_terpakai: updatedDiskon.kuota_terpakai }
-                    : d
-                )
-              );
-            }
-          }
+        if (!rpcError && newKuotaTerpakai !== null) {
+          setDiskonList((prev) =>
+            prev.map((d) =>
+              d.id === sale.diskon_id
+                ? { ...d, kuota_terpakai: newKuotaTerpakai }
+                : d
+            )
+          );
         }
       } catch (_) {
         console.warn("Gagal tracking kuota diskon:", sale.diskon_id);
