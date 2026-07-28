@@ -204,11 +204,11 @@ export function ProductProvider({ children }) {
   }, [supabase]);
   useEffect(() => { loadSales(); }, [loadSales]);
   const addSale = useCallback(async (sale) => {
-    // Exclude hargaModal from penjualan insert — kolom belum ada di DB
-    // (migration-harga-modal.sql perlu dijalankan di Supabase SQL Editor)
-    const { hargaModal: _hpp, ...saleForInsert } = sale;
+    // Exclude kolom yang belum ada di DB: hargaModal, diskon_id, diskon_nilai, hemat
+    // (migration-harga-modal.sql + migration-diskon-penjualan.sql perlu dijalankan)
+    const { hargaModal: _hpp, diskon_id: _did, diskon_nilai: _dn, hemat: _hm, ...saleForInsert } = sale;
     const { data, error } = await supabase.from("penjualan").insert(toSnake(saleForInsert)).select().single();
-    if (error) return false;
+    if (error) { console.error("addSale insert error:", error); return false; }
     setSales((prev) => [toCamel(data), ...prev]);
 
     // Catat otomatis ke tabel keuangan (Pemasukan)

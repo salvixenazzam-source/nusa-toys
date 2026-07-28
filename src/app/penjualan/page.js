@@ -120,6 +120,7 @@ export default function PenjualanPage() {
   const openAdd = () => {
     setForm({ ...EMPTY_FORM, tanggal: today() });
     setErrors({});
+    setSaveError("");
     setModalOpen(true);
   };
 
@@ -136,11 +137,13 @@ export default function PenjualanPage() {
 
   /* ─── Simpan ─────────────────────────── */
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const handleSave = async () => {
     if (!validate()) return;
 
     setSaving(true);
+    setSaveError("");
 
     const newSale = {
       invoice: nextInvoice(sales),
@@ -163,6 +166,7 @@ export default function PenjualanPage() {
 
     const ok = await addSale(newSale);
     if (!ok) {
+      setSaveError("Gagal menyimpan penjualan. Coba lagi atau cek koneksi.");
       setSaving(false);
       return;
     }
@@ -526,6 +530,11 @@ export default function PenjualanPage() {
             </div>
 
             {/* Tombol */}
+            {saveError && (
+              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600">
+                {saveError}
+              </div>
+            )}
             <div className="mt-6 flex justify-end gap-2">
               <button
                 onClick={() => setModalOpen(false)}
