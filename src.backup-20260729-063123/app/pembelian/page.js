@@ -26,7 +26,7 @@ const EMPTY_FORM = {
 
 /* ── Komponen Utama ──────────────────────────────────────── */
 export default function PembelianPage() {
-  const { products, updateStock, purchases, purchasesLoading, addPurchase, triggerJurnalPembelian } = useStore();
+  const { products, updateStock, purchases, purchasesLoading, addPurchase } = useStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
@@ -129,21 +129,14 @@ export default function PembelianPage() {
       total: qty * hargaSatuan + ongkir,
     };
 
-    const savedPurchase = await addPurchase(newPurchase);
-    if (!savedPurchase) {
+    const ok = await addPurchase(newPurchase);
+    if (!ok) {
       setSaving(false);
       return;
     }
 
     // ⚡ INTI: stok produk bertambah di Supabase
     await updateStock(form.sku, qty);
-
-    // Catat jurnal double-entry otomatis
-    try {
-      await triggerJurnalPembelian(savedPurchase);
-    } catch (jurnalErr) {
-      console.warn("Peringatan: gagal catat jurnal:", jurnalErr);
-    }
 
     setSaving(false);
     setModalOpen(false);

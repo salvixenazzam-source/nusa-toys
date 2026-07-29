@@ -1,5 +1,4 @@
 import { Inter } from "next/font/google";
-import { Suspense } from "react";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import AppShell from "@/components/AppShell";
@@ -19,9 +18,7 @@ export default function RootLayout({ children }) {
     <html lang="id" className={`${inter.variable} h-full`}>
       <body className="h-full antialiased">
         <Providers>
-          <Suspense fallback={null}>
-            <AppShell>{children}</AppShell>
-          </Suspense>
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>

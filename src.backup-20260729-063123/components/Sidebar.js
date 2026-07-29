@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const menuItems = [
@@ -12,17 +12,14 @@ const menuItems = [
   { href: "/inventory", label: "Inventory", icon: "📋" },
   { href: "/pembelian", label: "Pembelian", icon: "🛒" },
   { href: "/penjualan", label: "Penjualan", icon: "💰" },
-];
-
-const laporanChildren = [
-  { href: "/laporan?tab=cashflow", label: "Cashflow" },
-  { href: "/laporan?tab=pnl", label: "P&L" },
-  { href: "/laporan?tab=neraca", label: "Neraca" },
+  { href: "/keuangan", label: "Keuangan", icon: "💵" },
+  { href: "/laporan", label: "Laporan", icon: "📈" },
+  { href: "/crm", label: "CRM", icon: "👥" },
+  { href: "/pengaturan", label: "Pengaturan", icon: "⚙️" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -67,7 +64,6 @@ export default function Sidebar() {
           <nav className="absolute top-0 left-0 bottom-0 w-64 bg-stone-50 shadow-xl pt-14 overflow-y-auto border-r border-stone-200">
             <SidebarContent
               pathname={pathname}
-              searchParams={searchParams}
               onNavigate={() => setMobileOpen(false)}
             />
           </nav>
@@ -88,7 +84,7 @@ export default function Sidebar() {
           <span className="text-lg font-bold tracking-tight text-stone-800">Nusa Toys</span>
         </Link>
         <nav className="flex-1 overflow-y-auto py-3">
-          <SidebarContent pathname={pathname} searchParams={searchParams} />
+          <SidebarContent pathname={pathname} />
         </nav>
         {/* Logout — desktop */}
         <div className="hidden md:block px-4 pb-4 border-t border-stone-200 pt-3">
@@ -135,11 +131,9 @@ function DesktopLogoutButton() {
   );
 }
 
-function SidebarContent({ pathname, searchParams, onNavigate }) {
+function SidebarContent({ pathname, onNavigate }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-  const isLaporanActive = pathname.startsWith("/laporan");
-  const currentTab = searchParams.get("tab") || "pnl";
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -149,20 +143,6 @@ function SidebarContent({ pathname, searchParams, onNavigate }) {
     router.push("/login");
     router.refresh();
   };
-
-  const menuLinkClass = (isActive) =>
-    `flex items-center gap-3 rounded-xl px-3 py-3 text-base font-medium transition-colors ${
-      isActive
-        ? "bg-accent-light text-accent-dark"
-        : "text-stone-600 hover:bg-stone-200 hover:text-stone-800"
-    }`;
-
-  const subLinkClass = (isActive) =>
-    `flex items-center gap-3 rounded-xl pl-10 pr-3 py-2.5 text-sm font-medium transition-colors ${
-      isActive
-        ? "bg-accent-light/60 text-accent-dark"
-        : "text-stone-500 hover:bg-stone-200 hover:text-stone-700"
-    }`;
 
   return (
     <>
@@ -174,7 +154,11 @@ function SidebarContent({ pathname, searchParams, onNavigate }) {
               <Link
                 href={item.href}
                 onClick={onNavigate}
-                className={menuLinkClass(isActive)}
+                className={`flex items-center gap-3 rounded-xl px-3 py-3 text-base font-medium transition-colors ${
+                  isActive
+                    ? "bg-accent-light text-accent-dark"
+                    : "text-stone-600 hover:bg-stone-200 hover:text-stone-800"
+                }`}
               >
                 <span className="text-lg">{item.icon}</span>
                 {item.label}
@@ -182,84 +166,6 @@ function SidebarContent({ pathname, searchParams, onNavigate }) {
             </li>
           );
         })}
-
-        {/* ── Laporan (expandable sub-menu) ────────────── */}
-        <li>
-          <Link
-            href="/laporan"
-            onClick={onNavigate}
-            className={menuLinkClass(isLaporanActive)}
-          >
-            <span className="text-lg">📈</span>
-            Laporan
-            <svg
-              className={`ml-auto h-4 w-4 transition-transform ${isLaporanActive ? "rotate-90" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-          {isLaporanActive && (
-            <ul className="mt-0.5 mb-1">
-              {laporanChildren.map((child) => {
-                const childTab = child.href.includes("tab=cashflow") ? "cashflow" : child.href.includes("tab=pnl") ? "pnl" : "neraca";
-                const isChildActive = currentTab === childTab;
-
-                return (
-                  <li key={child.href}>
-                    <Link
-                      href={child.href}
-                      onClick={onNavigate}
-                      className={subLinkClass(isChildActive)}
-                    >
-                      <span className="text-sm">•</span>
-                      {child.label}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </li>
-
-        {/* ── Jurnal ────────────────────────────────────── */}
-        <li>
-          <Link
-            href="/jurnal"
-            onClick={onNavigate}
-            className={menuLinkClass(pathname === "/jurnal")}
-          >
-            <span className="text-lg">📒</span>
-            Jurnal
-          </Link>
-        </li>
-
-        {/* ── CRM ───────────────────────────────────────── */}
-        <li>
-          <Link
-            href="/crm"
-            onClick={onNavigate}
-            className={menuLinkClass(pathname === "/crm")}
-          >
-            <span className="text-lg">👥</span>
-            CRM
-          </Link>
-        </li>
-
-        {/* ── Pengaturan ────────────────────────────────── */}
-        <li>
-          <Link
-            href="/pengaturan"
-            onClick={onNavigate}
-            className={menuLinkClass(pathname === "/pengaturan")}
-          >
-            <span className="text-lg">⚙️</span>
-            Pengaturan
-          </Link>
-        </li>
       </ul>
       {/* Logout — mobile */}
       <div className="md:hidden mt-auto px-2 pb-4 pt-2 border-t border-stone-200">

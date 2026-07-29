@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
-import { jurnalPenjualan, jurnalPembelian, jurnalKeuangan, getPnL, getNeraca, getJurnalList, getPersediaanSummary } from "@/lib/jurnal";
 
 /* ── Mapping: DB (snake_case) ↔ JS (camelCase) ───────────── */
 const DB_TO_JS = {
@@ -154,8 +153,7 @@ export function ProductProvider({ children }) {
   const addPurchase = useCallback(async (item) => {
     const { data, error } = await supabase.from("pembelian").insert(toSnake(item)).select().single();
     if (error) return false;
-    const newPurchase = toCamel(data);
-    setPurchases((prev) => [newPurchase, ...prev]);
+    setPurchases((prev) => [toCamel(data), ...prev]);
 
     // Catat otomatis ke tabel persediaan (Aset — MASUK, nilai produk saja tanpa ongkir)
     const nilaiProduk = item.qty * item.hargaSatuan;
@@ -185,7 +183,7 @@ export function ProductProvider({ children }) {
 
     await loadPersediaan(); // refresh state lokal
 
-    return newPurchase;
+    return true;
   }, [supabase, loadKeuangan, loadPersediaan]);
 
   /* ── Persediaan → Supabase ───────────── */
@@ -206,13 +204,12 @@ export function ProductProvider({ children }) {
   }, [supabase]);
   useEffect(() => { loadSales(); }, [loadSales]);
   const addSale = useCallback(async (sale) => {
-    // Exclude kolom yang belum ada di DB: hargaModal, diskon_id, diskon_nilai, hemat
-    // (migration-harga-modal.sql + migration-diskon-penjualan.sql perlu dijalankan)
-    const { hargaModal: _hpp, diskon_id: _did, diskon_nilai: _dn, hemat: _hm, ...saleForInsert } = sale;
+    // Exclude hargaModal from penjualan insert — kolom belum ada di DB
+    // (migration-harga-modal.sql perlu dijalankan di Supabase SQL Editor)
+    const { hargaModal: _hpp, ...saleForInsert } = sale;
     const { data, error } = await supabase.from("penjualan").insert(toSnake(saleForInsert)).select().single();
-    if (error) { console.error("addSale insert error:", error); return false; }
-    const newSale = toCamel(data);
-    setSales((prev) => [newSale, ...prev]);
+    if (error) return false;
+    setSales((prev) => [toCamel(data), ...prev]);
 
     // Catat otomatis ke tabel keuangan (Pemasukan)
     await supabase.from("keuangan").insert({
@@ -272,7 +269,7 @@ export function ProductProvider({ children }) {
       }
     }
 
-    return newSale;
+    return true;
   }, [supabase, loadKeuangan, loadPersediaan]);
 
   /* ── Pelanggan → Supabase ────────────── */
@@ -303,36 +300,7 @@ export function ProductProvider({ children }) {
     const { data, error } = await supabase.from("keuangan").insert(item).select().single();
     if (error) return false;
     setKeuangan((prev) => [data, ...prev]);
-    return data;
-  }, [supabase]);
-
-  /* ── Jurnal → Supabase ──────────────── */
-  const triggerJurnalPenjualan = useCallback(async (sale) => {
-    await jurnalPenjualan(supabase, sale);
-  }, [supabase]);
-
-  const triggerJurnalPembelian = useCallback(async (purchase) => {
-    await jurnalPembelian(supabase, purchase);
-  }, [supabase]);
-
-  const triggerJurnalKeuangan = useCallback(async (item) => {
-    await jurnalKeuangan(supabase, item);
-  }, [supabase]);
-
-  const fetchPnL = useCallback(async (startDate, endDate) => {
-    return await getPnL(supabase, startDate, endDate);
-  }, [supabase]);
-
-  const fetchNeraca = useCallback(async (startDate, endDate) => {
-    return await getNeraca(supabase, startDate, endDate);
-  }, [supabase]);
-
-  const fetchJurnalList = useCallback(async (startDate, endDate) => {
-    return await getJurnalList(supabase, startDate, endDate);
-  }, [supabase]);
-
-  const fetchPersediaanSummary = useCallback(async (startDate, endDate) => {
-    return await getPersediaanSummary(supabase, startDate, endDate);
+    return true;
   }, [supabase]);
 
   /* ── Diskon → Supabase ──────────────── */
@@ -436,8 +404,6 @@ export function ProductProvider({ children }) {
         keuangan, addKeuangan,
         persediaan, addPersediaan,
         purchases, purchasesLoading, addPurchase,
-        triggerJurnalPenjualan, triggerJurnalPembelian, triggerJurnalKeuangan,
-        fetchPnL, fetchNeraca, fetchJurnalList, fetchPersediaanSummary,
         diskonList, diskonLoading, addDiskon, updateDiskon, toggleDiskon, deleteDiskon, loadDiskon,
         targetOmzet, setTargetOmzet,
         getHargaByChannel, nextInvoice,

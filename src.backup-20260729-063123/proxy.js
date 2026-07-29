@@ -1,0 +1,56 @@
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse } from "next/server";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase-config";
+
+const PUBLIC_PREFIXES = ["/login", "/_next", "/favicon.ico", "/logo.png"];
+
+export default async function proxy(request) {
+  let supabaseResponse = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value);
+            supabaseResponse.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const { pathname } = request.nextUrl;
+  const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+
+  // Blocked: no session and not a public route → redirect to /login
+  if (!isPublic && !session) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  // Already logged in and visiting /login → redirect to intended page or home
+  if (pathname === "/login" && session) {
+    const redirectTo =
+      request.nextUrl.searchParams.get("redirect") || "/dashboard";
+    return NextResponse.redirect(new URL(redirectTo, request.url));
+  }
+
+  return supabaseResponse;
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|logo.png).*)",
+  ],
+};

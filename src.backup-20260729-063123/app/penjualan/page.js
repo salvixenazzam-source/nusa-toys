@@ -31,7 +31,6 @@ export default function PenjualanPage() {
     customers, upsertCustomer,
     getHargaByChannel, nextInvoice,
     diskonList,
-    triggerJurnalPenjualan,
   } = useStore();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -121,7 +120,6 @@ export default function PenjualanPage() {
   const openAdd = () => {
     setForm({ ...EMPTY_FORM, tanggal: today() });
     setErrors({});
-    setSaveError("");
     setModalOpen(true);
   };
 
@@ -132,20 +130,17 @@ export default function PenjualanPage() {
     if (!form.sku) e.sku = "Produk wajib dipilih";
     if (!form.qty || Number(form.qty) <= 0) e.qty = "Qty harus > 0";
     else if (qtyNum > stokTersedia) e.qty = `Stok tidak cukup! Tersedia: ${stokTersedia}`;
-    if (form.sku && qtyNum > 0 && omzet <= 0) e.omzet = "Omzet harus > 0 — cek harga jual untuk channel ini";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   /* ─── Simpan ─────────────────────────── */
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
 
   const handleSave = async () => {
     if (!validate()) return;
 
     setSaving(true);
-    setSaveError("");
 
     const newSale = {
       invoice: nextInvoice(sales),
@@ -166,22 +161,14 @@ export default function PenjualanPage() {
       hargaModal: selectedProduct?.hargaModal || 0,
     };
 
-    const savedSale = await addSale(newSale);
-    if (!savedSale) {
-      setSaveError("Gagal menyimpan penjualan. Coba lagi atau cek koneksi.");
+    const ok = await addSale(newSale);
+    if (!ok) {
       setSaving(false);
       return;
     }
 
     await updateStock(form.sku, -qtyNum);
     await upsertCustomer(form.pembeli.trim(), form.tanggal);
-
-    // Catat jurnal double-entry otomatis
-    try {
-      await triggerJurnalPenjualan(savedSale);
-    } catch (jurnalErr) {
-      console.warn("Peringatan: gagal catat jurnal:", jurnalErr);
-    }
 
     setSaving(false);
     setModalOpen(false);
@@ -538,19 +525,7 @@ export default function PenjualanPage() {
               )}
             </div>
 
-            {/* Error omzet */}
-            {errors.omzet && selectedProduct && qtyNum > 0 && omzet <= 0 && (
-              <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
-                ⚠ {errors.omzet}
-              </div>
-            )}
-
             {/* Tombol */}
-            {saveError && (
-              <div className="mb-3 rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600">
-                {saveError}
-              </div>
-            )}
             <div className="mt-6 flex justify-end gap-2">
               <button
                 onClick={() => setModalOpen(false)}
@@ -560,7 +535,7 @@ export default function PenjualanPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || omzet <= 0}
+                disabled={saving}
                 className="rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
               >
                 {saving ? "Menyimpan..." : "Simpan Penjualan"}
