@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase-config";
 
-const PUBLIC_PREFIXES = ["/login", "/_next", "/favicon.ico", "/logo.png"];
+const PUBLIC_PREFIXES = ["/login", "/_next", "/favicon.ico", "/logo.png", "/api/verify-pin"];
 
 export default async function proxy(request) {
   let supabaseResponse = NextResponse.next({ request });

@@ -314,4 +314,22 @@ export async function getPersediaanSummary(supabase, startDate, endDate) {
   };
 }
 
+/* ── Delete Jurnal by Reference ───────────────────────────── */
+/**
+ * Hapus semua jurnal + jurnal_item milik satu referensi transaksi.
+ * jurnal_item memiliki ON DELETE CASCADE ke jurnal, jadi cukup hapus header.
+ * @param {Object} supabase
+ * @param {string} ref_type - 'penjualan' | 'pembelian' | 'Keuangan'
+ * @param {number} ref_id
+ */
+export async function deleteJurnalByRef(supabase, ref_type, ref_id) {
+  const { error } = await supabase
+    .from("jurnal")
+    .delete()
+    .eq("ref_type", ref_type)
+    .eq("ref_id", ref_id);
+
+  if (error) throw new Error(`Gagal hapus jurnal ${ref_type}#${ref_id}: ${error.message}`);
+}
+
 export { AKUN_KODE, KATEGORI_TO_AKUN };

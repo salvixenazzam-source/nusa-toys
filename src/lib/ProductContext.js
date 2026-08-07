@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
-import { jurnalPenjualan, jurnalPembelian, jurnalKeuangan, getPnL, getNeraca, getJurnalList, getPersediaanSummary } from "@/lib/jurnal";
+import { jurnalPenjualan, jurnalPembelian, jurnalKeuangan, deleteJurnalByRef, getPnL, getNeraca, getJurnalList, getPersediaanSummary } from "@/lib/jurnal";
 
 /* ── Mapping: DB (snake_case) ↔ JS (camelCase) ───────────── */
 const DB_TO_JS = {
@@ -168,6 +168,8 @@ export function ProductProvider({ children }) {
       sku: item.sku,
       supplier: item.supplier,
       keterangan: `Pembelian ${item.namaProduk}`,
+      ref_type: "Pembelian",
+      ref_id: newPurchase.id,
     });
 
     // Ongkir dicatat sebagai Pengeluaran operasional (bukan aset)
@@ -179,6 +181,8 @@ export function ProductProvider({ children }) {
         kategori: "Ongkir",
         jumlah: ongkir,
         keterangan: `Ongkir pembelian ${item.namaProduk} — ${item.supplier}`,
+        ref_type: "Pembelian",
+        ref_id: newPurchase.id,
       });
       await loadKeuangan(); // refresh state lokal
     }
@@ -188,6 +192,91 @@ export function ProductProvider({ children }) {
     return newPurchase;
   }, [supabase, loadKeuangan, loadPersediaan]);
 
+  /* ── Update Pembelian (revert + update + re-apply) ───────── */
+  const updatePurchase = useCallback(async (id, purchaseBaru) => {
+    // 1. Ambil data purchase LAMA dari state
+    const oldPurchase = purchases.find((p) => p.id === id);
+    if (!oldPurchase) {
+      console.error("updatePurchase: purchase lama tidak ditemukan di state, id:", id);
+      return false;
+    }
+
+    // 2. REVERT: hapus baris turunan lama via ref_type + ref_id (presisi)
+    // -- persediaan MASUK (Pembelian)
+    await supabase.from("persediaan").delete()
+      .eq("ref_type", "Pembelian")
+      .eq("ref_id", id);
+
+    // -- keuangan Ongkir
+    await supabase.from("keuangan").delete()
+      .eq("ref_type", "Pembelian")
+      .eq("ref_id", id);
+
+    // -- jurnal
+    try { await deleteJurnalByRef(supabase, "Pembelian", id); } catch (_) {}
+
+    // 3. UPDATE baris pembelian — strip id & timestamps agar tidak bocor
+    const { id: _pid, created_at: _pca, updated_at: _pua, ...purchaseForUpdate } = purchaseBaru;
+    const { error: updateError } = await supabase
+      .from("pembelian")
+      .update(toSnake(purchaseForUpdate))
+      .eq("id", id);
+    if (updateError) {
+      console.error("updatePurchase: gagal update pembelian:", updateError);
+      return false;
+    }
+
+    // 4. RE-APPLY efek baru (seperti addPurchase)
+    const nilaiProduk = (purchaseBaru.qty || 0) * (purchaseBaru.hargaSatuan || 0);
+    await supabase.from("persediaan").insert({
+      tanggal: purchaseBaru.tanggal,
+      tipe: "MASUK",
+      kategori: "Pembelian",
+      jumlah: nilaiProduk,
+      qty: purchaseBaru.qty,
+      sku: purchaseBaru.sku,
+      supplier: purchaseBaru.supplier,
+      keterangan: `Pembelian ${purchaseBaru.namaProduk}`,
+      ref_type: "Pembelian",
+      ref_id: id,
+    });
+
+    const ongkir = Number(purchaseBaru.ongkir) || 0;
+    if (ongkir > 0) {
+      await supabase.from("keuangan").insert({
+        tanggal: purchaseBaru.tanggal,
+        tipe: "Pengeluaran",
+        kategori: "Ongkir",
+        jumlah: ongkir,
+        keterangan: `Ongkir pembelian ${purchaseBaru.namaProduk} — ${purchaseBaru.supplier}`,
+        ref_type: "Pembelian",
+        ref_id: id,
+      });
+    }
+
+    // -- stok produk: sesuaikan delta qty & kemungkinan ganti SKU
+    const oldQty = Number(oldPurchase.qty) || 0;
+    const newQty = Number(purchaseBaru.qty) || 0;
+    const oldSku = oldPurchase.sku;
+    const newSku = purchaseBaru.sku;
+    if (oldSku === newSku) {
+      await updateStock(newSku, newQty - oldQty); // qty naik → stok naik
+    } else {
+      await updateStock(oldSku, -oldQty);     // kurangi stok produk lama
+      await updateStock(newSku, newQty);      // tambah stok produk baru
+    }
+
+    // -- jurnal baru (re-apply)
+    try { await jurnalPembelian(supabase, purchaseBaru); } catch (e) { console.warn("updatePurchase: gagal re-apply jurnal:", e); }
+
+    // 5. Refresh state lokal
+    setPurchases((prev) => prev.map((p) => (p.id === id ? { ...p, ...purchaseBaru } : p)));
+    await loadKeuangan();
+    await loadPersediaan();
+
+    return true;
+  }, [supabase, purchases, loadKeuangan, loadPersediaan, updateStock]);
+
   /* ── Persediaan → Supabase ───────────── */
   const addPersediaan = useCallback(async (item) => {
     const { data, error } = await supabase.from("persediaan").insert(item).select().single();
@@ -195,6 +284,43 @@ export function ProductProvider({ children }) {
     setPersediaan((prev) => [data, ...prev]);
     return true;
   }, [supabase]);
+
+  /* ── Update Persediaan (manual entry edit) ───────────────── */
+  const updatePersediaan = useCallback(async (id, itemBaru) => {
+    // 1. Ambil data persediaan LAMA
+    const oldItem = persediaan.find((p) => p.id === id);
+    if (!oldItem) {
+      console.error("updatePersediaan: item lama tidak ditemukan, id:", id);
+      return false;
+    }
+
+    // 2. Update baris persediaan
+    const { error } = await supabase
+      .from("persediaan")
+      .update(itemBaru)
+      .eq("id", id);
+    if (error) {
+      console.error("updatePersediaan: gagal update:", error);
+      return false;
+    }
+
+    setPersediaan((prev) => prev.map((p) => (p.id === id ? { ...p, ...itemBaru } : p)));
+
+    // 3. Jika ada delta qty, update stok produk
+    const oldQty = Number(oldItem.qty) || 0;
+    const newQty = Number(itemBaru.qty) || 0;
+    const delta = newQty - oldQty;
+
+    if (delta !== 0 && itemBaru.sku) {
+      // MASUK = tambah stok, KELUAR = kurang stok
+      const stockDelta = itemBaru.tipe === "MASUK" ? delta : -delta;
+      if (stockDelta !== 0) {
+        await updateStock(itemBaru.sku, stockDelta);
+      }
+    }
+
+    return true;
+  }, [supabase, persediaan, updateStock]);
 
   /* ── Penjualan → Supabase ────────────── */
   const [sales, setSales] = useState([]);
@@ -221,6 +347,8 @@ export function ProductProvider({ children }) {
       kategori: "Penjualan",
       jumlah: sale.omzet,
       keterangan: `${sale.invoice} — ${sale.pembeli}`,
+      ref_type: "Penjualan",
+      ref_id: newSale.id,
     });
 
     // Catat HPP sebagai Pengeluaran
@@ -232,6 +360,8 @@ export function ProductProvider({ children }) {
         kategori: "HPP",
         jumlah: hpp,
         keterangan: `HPP ${sale.namaProduk || ''} (${sale.qty || 0} pcs)`,
+        ref_type: "Penjualan",
+        ref_id: newSale.id,
       });
     }
 
@@ -244,6 +374,8 @@ export function ProductProvider({ children }) {
       qty: sale.qty || 0,
       sku: sale.sku || '',
       keterangan: `Terjual ${sale.qty || 0} × ${sale.namaProduk || ''}`,
+      ref_type: "Penjualan",
+      ref_id: newSale.id,
     });
 
     // Refresh state
@@ -274,6 +406,115 @@ export function ProductProvider({ children }) {
 
     return newSale;
   }, [supabase, loadKeuangan, loadPersediaan]);
+
+  /* ── Update Penjualan (revert + update + re-apply) ──────── */
+  const updateSale = useCallback(async (id, saleBaru) => {
+    // 1. Ambil data sale LAMA dari state
+    const oldSale = sales.find((s) => s.id === id);
+    if (!oldSale) {
+      console.error("updateSale: sale lama tidak ditemukan di state, id:", id);
+      return false;
+    }
+
+    // 2. REVERT: hapus baris turunan lama via ref_type + ref_id (presisi)
+    // -- keuangan (Pemasukan + HPP) — satu query untuk semua
+    await supabase.from("keuangan").delete()
+      .eq("ref_type", "Penjualan")
+      .eq("ref_id", id);
+
+    // -- persediaan KELUAR
+    await supabase.from("persediaan").delete()
+      .eq("ref_type", "Penjualan")
+      .eq("ref_id", id);
+
+    // -- jurnal (ON DELETE CASCADE ke jurnal_item)
+    try { await deleteJurnalByRef(supabase, "Penjualan", id); } catch (_) {}
+    try { await deleteJurnalByRef(supabase, "Penjualan-HPP", id); } catch (_) {}
+
+    // 3. UPDATE baris penjualan — strip id, timestamps, & field terhitung agar tidak bocor
+    const { id: _sid, hargaModal: _hpp, diskon_id: _did, diskon_nilai: _dn, hemat: _hm, created_at: _sca, updated_at: _sua, ...saleForUpdate } = saleBaru;
+    const { error: updateError } = await supabase
+      .from("penjualan")
+      .update(toSnake(saleForUpdate))
+      .eq("id", id);
+    if (updateError) {
+      console.error("updateSale: gagal update penjualan:", updateError);
+      return false;
+    }
+
+    // 4. RE-APPLY efek baru (seperti addSale)
+    await supabase.from("keuangan").insert({
+      tanggal: saleBaru.tanggal,
+      tipe: "Pemasukan",
+      kategori: "Penjualan",
+      jumlah: saleBaru.omzet,
+      keterangan: `${saleBaru.invoice} — ${saleBaru.pembeli}`,
+      ref_type: "Penjualan",
+      ref_id: id,
+    });
+
+    const newHpp = (saleBaru.qty || 0) * (saleBaru.hargaModal || 0);
+    if (newHpp > 0) {
+      await supabase.from("keuangan").insert({
+        tanggal: saleBaru.tanggal,
+        tipe: "Pengeluaran",
+        kategori: "HPP",
+        jumlah: newHpp,
+        keterangan: `HPP ${saleBaru.namaProduk || ""} (${saleBaru.qty || 0} pcs)`,
+        ref_type: "Penjualan",
+        ref_id: id,
+      });
+    }
+
+    await supabase.from("persediaan").insert({
+      tanggal: saleBaru.tanggal,
+      tipe: "KELUAR",
+      kategori: "Penjualan",
+      jumlah: newHpp,
+      qty: saleBaru.qty || 0,
+      sku: saleBaru.sku || "",
+      keterangan: `Terjual ${saleBaru.qty || 0} × ${saleBaru.namaProduk || ""}`,
+      ref_type: "Penjualan",
+      ref_id: id,
+    });
+
+    // -- diskon kuota: revert lama, apply baru
+    if (oldSale.diskon_id && oldSale.diskon_id !== (saleBaru.diskon_id || null)) {
+      try {
+        await supabase.rpc("decrement_kuota_diskon", { diskon_id_param: oldSale.diskon_id });
+      } catch (_) {}
+    }
+    if (saleBaru.diskon_id && saleBaru.diskon_id !== (oldSale.diskon_id || null)) {
+      try {
+        const { data: newKuota } = await supabase.rpc("increment_kuota_diskon", { diskon_id_param: saleBaru.diskon_id });
+        if (newKuota !== null) {
+          setDiskonList((prev) => prev.map((d) => d.id === saleBaru.diskon_id ? { ...d, kuota_terpakai: newKuota } : d));
+        }
+      } catch (_) {}
+    }
+
+    // -- stok produk: sesuaikan delta qty & kemungkinan ganti SKU
+    const oldQty = Number(oldSale.qty) || 0;
+    const newQty = Number(saleBaru.qty) || 0;
+    const oldSku = oldSale.sku;
+    const newSku = saleBaru.sku;
+    if (oldSku === newSku) {
+      await updateStock(newSku, oldQty - newQty); // qty turun → stok naik
+    } else {
+      await updateStock(oldSku, oldQty);      // kembalikan stok produk lama
+      await updateStock(newSku, -newQty);     // potong stok produk baru
+    }
+
+    // -- jurnal baru (re-apply)
+    try { await jurnalPenjualan(supabase, saleBaru); } catch (e) { console.warn("updateSale: gagal re-apply jurnal:", e); }
+
+    // 5. Refresh state lokal
+    setSales((prev) => prev.map((s) => (s.id === id ? { ...s, ...saleBaru } : s)));
+    await loadKeuangan();
+    await loadPersediaan();
+
+    return true;
+  }, [supabase, sales, loadKeuangan, loadPersediaan, updateStock]);
 
   /* ── Pelanggan → Supabase ────────────── */
   const [customers, setCustomers] = useState([]);
@@ -431,11 +672,11 @@ export function ProductProvider({ children }) {
     <StoreContext.Provider
       value={{
         products, productsLoading, addProduct, updateProduct, deleteProduct, updateStock,
-        sales, salesLoading, addSale,
+        sales, salesLoading, addSale, updateSale,
         customers, upsertCustomer, updateCustomer,
         keuangan, addKeuangan,
-        persediaan, addPersediaan,
-        purchases, purchasesLoading, addPurchase,
+        persediaan, addPersediaan, updatePersediaan,
+        purchases, purchasesLoading, addPurchase, updatePurchase,
         triggerJurnalPenjualan, triggerJurnalPembelian, triggerJurnalKeuangan,
         fetchPnL, fetchNeraca, fetchJurnalList, fetchPersediaanSummary,
         diskonList, diskonLoading, addDiskon, updateDiskon, toggleDiskon, deleteDiskon, loadDiskon,

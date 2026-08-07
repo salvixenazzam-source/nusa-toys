@@ -3,6 +3,8 @@
 import { useState, useMemo, useRef } from "react";
 import { useStore } from "@/lib/ProductContext";
 import { fmtDate } from "@/lib/helpers";
+import PinModal from "@/components/PinModal";
+import EditFormModal from "@/components/EditFormModal";
 
 /* ── Helpers ─────────────────────────────────────────────── */
 const fmtRupiah = (n) =>
@@ -26,7 +28,7 @@ const EMPTY_FORM = {
 
 /* ── Komponen Utama ──────────────────────────────────────── */
 export default function PembelianPage() {
-  const { products, updateStock, purchases, purchasesLoading, addPurchase, triggerJurnalPembelian } = useStore();
+  const { products, updateStock, purchases, purchasesLoading, addPurchase, updatePurchase, triggerJurnalPembelian } = useStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
@@ -108,6 +110,27 @@ export default function PembelianPage() {
   /* ─── Simpan ───────────────────────────── */
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false); // guard race condition double-click
+
+  /* ─── Edit state ─────────────────────── */
+  const [pinModal, setPinModal] = useState(false);
+  const [editModal, setEditModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [toast, setToast] = useState("");
+
+  const handleEditClick = (p) => {
+    setEditItem(p);
+    setPinModal(true);
+  };
+
+  const handlePinSuccess = () => {
+    setPinModal(false);
+    setEditModal(true);
+  };
+
+  const handleEditClose = () => {
+    setEditModal(false);
+    setEditItem(null);
+  };
 
   const handleSave = async () => {
     if (!validate()) return;
@@ -256,18 +279,19 @@ export default function PembelianPage() {
               <th className="px-4 py-3 text-right">Harga Satuan</th>
               <th className="px-4 py-3 text-right">Ongkir</th>
               <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-4 py-3 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-50">
             {purchasesLoading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-16 text-center text-stone-400">
+                <td colSpan={8} className="px-4 py-16 text-center text-stone-400">
                   Memuat data dari database...
                 </td>
               </tr>
             ) : filteredPurchases.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-16 text-center text-stone-400">
+                <td colSpan={8} className="px-4 py-16 text-center text-stone-400">
                   Belum ada transaksi pembelian.
                 </td>
               </tr>
@@ -284,6 +308,18 @@ export default function PembelianPage() {
                 <td className="px-4 py-3 text-right text-stone-700">{fmtRupiah(p.hargaSatuan)}</td>
                 <td className="px-4 py-3 text-right text-stone-500">{p.ongkir > 0 ? fmtRupiah(p.ongkir) : "-"}</td>
                 <td className="px-4 py-3 text-right font-medium text-stone-800">{fmtRupiah(p.total)}</td>
+                <td className="px-4 py-3 text-center">
+                  <button
+                    onClick={() => handleEditClick(p)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-500 hover:bg-accent-light hover:text-accent-dark transition-colors"
+                    title="Edit pembelian"
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                    </svg>
+                    Edit
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -415,6 +451,38 @@ export default function PembelianPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── PinModal (verifikasi) ────────── */}
+      <PinModal
+        open={pinModal}
+        onClose={() => setPinModal(false)}
+        onSuccess={handlePinSuccess}
+      />
+
+      {/* ── EditFormModal (edit pembelian) ── */}
+      <EditFormModal
+        open={editModal}
+        type="pembelian"
+        oldData={editItem}
+        onSave={() => {}}
+        onClose={handleEditClose}
+        toast={setToast}
+      />
+
+      {/* ── Toast ─────────────────────────── */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[100] animate-bounce">
+          <div className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-medium text-white shadow-lg">
+            {toast}
+          </div>
+          <button
+            onClick={() => setToast("")}
+            className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-stone-500 shadow text-[10px]"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useStore } from "@/lib/ProductContext";
 import { fmtDate } from "@/lib/helpers";
+import PinModal from "@/components/PinModal";
+import EditFormModal from "@/components/EditFormModal";
 
 /* ── Helpers ─────────────────────────────────────────────── */
 const fmtRupiah = (n) =>
@@ -42,7 +44,7 @@ function saldoAkun(akun) {
 function LaporanInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { fetchPnL, fetchNeraca, fetchPersediaanSummary, keuangan, sales, persediaan, addKeuangan, triggerJurnalKeuangan } = useStore();
+  const { fetchPnL, fetchNeraca, fetchPersediaanSummary, keuangan, sales, persediaan, addKeuangan, triggerJurnalKeuangan, updateSale, updatePurchase, updatePersediaan, purchases } = useStore();
 
   const activeTab = searchParams.get("tab") || "pnl";
 
@@ -335,6 +337,9 @@ function LaporanInner() {
           persediaanSummary={persediaanSummary}
           addKeuangan={addKeuangan}
           triggerJurnalKeuangan={triggerJurnalKeuangan}
+          updateSale={updateSale}
+          updatePersediaan={updatePersediaan}
+          purchases={purchases}
           dateFrom={dateFrom}
           dateTo={dateTo}
         />
@@ -580,12 +585,54 @@ const EMPTY_FORM = {
   keterangan: "",
 };
 
-function CashflowView({ keuangan, sales, persediaan, persediaanSummary, addKeuangan, triggerJurnalKeuangan, dateFrom, dateTo }) {
+function CashflowView({ keuangan, sales, persediaan, persediaanSummary, addKeuangan, triggerJurnalKeuangan, updateSale, updatePersediaan, purchases, dateFrom, dateTo }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState({});
   const [filterTab, setFilterTab] = useState("Semua");
   const [saving, setSaving] = useState(false);
+
+  /* ─── Edit state ─────────────────────── */
+  const [pinModal, setPinModal] = useState(false);
+  const [editModal, setEditModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [editType, setEditType] = useState("penjualan");
+  const [toast, setToast] = useState("");
+
+  const handleEditClick = (t) => {
+    if (t.sumber === "Penjualan") {
+      // id format: "sale-<id>"
+      const saleId = t.id.replace("sale-", "");
+      const sale = sales.find((s) => String(s.id) === String(saleId));
+      if (sale) {
+        setEditItem(sale);
+        setEditType("penjualan");
+      } else {
+        setToast("Data transaksi sumber tidak ditemukan");
+        return;
+      }
+    } else {
+      // Manual — tidak diedit
+      return;
+    }
+    setPinModal(true);
+  };
+
+  const handleEditPersediaan = (p) => {
+    setEditItem(p);
+    setEditType("persediaan");
+    setPinModal(true);
+  };
+
+  const handlePinSuccess = () => {
+    setPinModal(false);
+    setEditModal(true);
+  };
+
+  const handleEditClose = () => {
+    setEditModal(false);
+    setEditItem(null);
+  };
 
   /* ─── Gabung semua transaksi ────────── */
   const allTransactions = useMemo(() => {
@@ -758,12 +805,13 @@ function CashflowView({ keuangan, sales, persediaan, persediaanSummary, addKeuan
               <th className="px-4 py-3 text-right">Jumlah</th>
               <th className="px-4 py-3">Keterangan</th>
               <th className="px-4 py-3 text-center">Sumber</th>
+              <th className="px-4 py-3 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-50">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-16 text-center text-stone-400">
+                <td colSpan={7} className="px-4 py-16 text-center text-stone-400">
                   Belum ada transaksi.
                 </td>
               </tr>
@@ -794,6 +842,22 @@ function CashflowView({ keuangan, sales, persediaan, persediaanSummary, addKeuan
                     {t.sumber}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-center">
+                  {t.sumber === "Penjualan" ? (
+                    <button
+                      onClick={() => handleEditClick(t)}
+                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-500 hover:bg-accent-light hover:text-accent-dark transition-colors"
+                      title="Edit penjualan"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                      </svg>
+                      Edit
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-stone-300">—</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -815,12 +879,13 @@ function CashflowView({ keuangan, sales, persediaan, persediaanSummary, addKeuan
                 <th className="px-4 py-3">SKU</th>
                 <th className="px-4 py-3">Supplier</th>
                 <th className="px-4 py-3">Keterangan</th>
+                <th className="px-4 py-3 text-center">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-50">
               {persediaan.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center text-stone-400">
+                  <td colSpan={9} className="px-4 py-16 text-center text-stone-400">
                     Belum ada data persediaan.
                   </td>
                 </tr>
@@ -852,6 +917,18 @@ function CashflowView({ keuangan, sales, persediaan, persediaanSummary, addKeuan
                   </td>
                   <td className="px-4 py-3 text-stone-500 text-xs max-w-[200px] truncate">
                     {p.keterangan || "\u2014"}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      onClick={() => handleEditPersediaan(p)}
+                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-500 hover:bg-accent-light hover:text-accent-dark transition-colors"
+                      title="Edit persediaan"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                      </svg>
+                      Edit
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -968,6 +1045,40 @@ function CashflowView({ keuangan, sales, persediaan, persediaanSummary, addKeuan
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── PinModal (verifikasi) ────────── */}
+      <PinModal
+        open={pinModal}
+        onClose={() => setPinModal(false)}
+        onSuccess={handlePinSuccess}
+      />
+
+      {/* ── EditFormModal ─────────────────── */}
+      <EditFormModal
+        open={editModal}
+        type={editType}
+        oldData={editItem}
+        onSave={() => {}}
+        onClose={handleEditClose}
+        toast={setToast}
+      />
+
+      {/* ── Toast ─────────────────────────── */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[100] animate-bounce">
+          <div className={`rounded-xl px-5 py-3 text-sm font-medium text-white shadow-lg ${
+            toast.includes("tidak ditemukan") ? "bg-amber-600" : "bg-emerald-600"
+          }`}>
+            {toast}
+          </div>
+          <button
+            onClick={() => setToast("")}
+            className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-stone-500 shadow text-[10px]"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

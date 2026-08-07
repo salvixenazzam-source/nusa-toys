@@ -3,11 +3,58 @@
 import { useState, useMemo } from "react";
 import { useStore } from "@/lib/ProductContext";
 import { fmtDate } from "@/lib/helpers";
+import PinModal from "@/components/PinModal";
+import EditFormModal from "@/components/EditFormModal";
 
 /* ── Komponen Utama ──────────────────────────────────────── */
 export default function InventoryPage() {
   const { products, purchases, sales } = useStore();
   const [filterSku, setFilterSku] = useState("");
+
+  /* ─── Edit state ─────────────────────── */
+  const [pinModal, setPinModal] = useState(false);
+  const [editModal, setEditModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [editType, setEditType] = useState("pembelian");
+  const [toast, setToast] = useState("");
+
+  const handleEditClick = (timelineItem) => {
+    // Cari transaksi sumber
+    if (timelineItem.type === "masuk") {
+      // id format: "beli-<id>"
+      const purchaseId = timelineItem.id.replace("beli-", "");
+      const purchase = purchases.find((p) => String(p.id) === String(purchaseId));
+      if (purchase) {
+        setEditItem(purchase);
+        setEditType("pembelian");
+      } else {
+        setToast("Data transaksi sumber tidak ditemukan");
+        return;
+      }
+    } else {
+      // id format: "jual-<id>"
+      const saleId = timelineItem.id.replace("jual-", "");
+      const sale = sales.find((s) => String(s.id) === String(saleId));
+      if (sale) {
+        setEditItem(sale);
+        setEditType("penjualan");
+      } else {
+        setToast("Data transaksi sumber tidak ditemukan");
+        return;
+      }
+    }
+    setPinModal(true);
+  };
+
+  const handlePinSuccess = () => {
+    setPinModal(false);
+    setEditModal(true);
+  };
+
+  const handleEditClose = () => {
+    setEditModal(false);
+    setEditItem(null);
+  };
 
   /* ─── Ringkasan stok ────────────────── */
   const stockSummary = useMemo(
@@ -140,12 +187,13 @@ export default function InventoryPage() {
               <th className="px-4 py-3 text-center">Masuk</th>
               <th className="px-4 py-3 text-center">Keluar</th>
               <th className="px-4 py-3">Keterangan</th>
+              <th className="px-4 py-3 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-50">
             {filteredTimeline.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-16 text-center text-stone-400">
+                <td colSpan={6} className="px-4 py-16 text-center text-stone-400">
                   Belum ada riwayat pergerakan stok.
                 </td>
               </tr>
@@ -172,11 +220,57 @@ export default function InventoryPage() {
                   )}
                 </td>
                 <td className="px-4 py-3 text-xs text-stone-500">{t.keterangan}</td>
+                <td className="px-4 py-3 text-center">
+                  <button
+                    onClick={() => handleEditClick(t)}
+                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-500 hover:bg-accent-light hover:text-accent-dark transition-colors"
+                    title={t.type === "masuk" ? "Edit pembelian" : "Edit penjualan"}
+                  >
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                    </svg>
+                    Edit
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* ── PinModal ──────────────────────── */}
+      <PinModal
+        open={pinModal}
+        onClose={() => setPinModal(false)}
+        onSuccess={handlePinSuccess}
+      />
+
+      {/* ── EditFormModal ─────────────────── */}
+      <EditFormModal
+        open={editModal}
+        type={editType}
+        oldData={editItem}
+        onSave={() => {}}
+        onClose={handleEditClose}
+        toast={setToast}
+      />
+
+      {/* ── Toast ─────────────────────────── */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[100] animate-bounce">
+          <div className={`rounded-xl px-5 py-3 text-sm font-medium text-white shadow-lg ${
+            toast.includes("tidak ditemukan") ? "bg-amber-600" : "bg-emerald-600"
+          }`}>
+            {toast}
+          </div>
+          <button
+            onClick={() => setToast("")}
+            className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-stone-500 shadow text-[10px]"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }
