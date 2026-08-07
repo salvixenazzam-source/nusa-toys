@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useStore } from "@/lib/ProductContext";
 import { fmtDate } from "@/lib/helpers";
 
@@ -107,9 +107,12 @@ export default function PembelianPage() {
 
   /* ─── Simpan ───────────────────────────── */
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false); // guard race condition double-click
 
   const handleSave = async () => {
     if (!validate()) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
 
     setSaving(true);
 
@@ -132,6 +135,7 @@ export default function PembelianPage() {
     const savedPurchase = await addPurchase(newPurchase);
     if (!savedPurchase) {
       setSaving(false);
+      savingRef.current = false;
       return;
     }
 
@@ -146,6 +150,7 @@ export default function PembelianPage() {
     }
 
     setSaving(false);
+    savingRef.current = false;
     setModalOpen(false);
   };
 

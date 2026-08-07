@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useStore } from "@/lib/ProductContext";
 import { fmtDate } from "@/lib/helpers";
 import { hitungDiskon } from "@/lib/diskon";
@@ -139,10 +139,13 @@ export default function PenjualanPage() {
 
   /* ─── Simpan ─────────────────────────── */
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false); // guard race condition double-click
   const [saveError, setSaveError] = useState("");
 
   const handleSave = async () => {
     if (!validate()) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
 
     setSaving(true);
     setSaveError("");
@@ -170,6 +173,7 @@ export default function PenjualanPage() {
     if (!savedSale) {
       setSaveError("Gagal menyimpan penjualan. Coba lagi atau cek koneksi.");
       setSaving(false);
+      savingRef.current = false;
       return;
     }
 
@@ -184,6 +188,7 @@ export default function PenjualanPage() {
     }
 
     setSaving(false);
+    savingRef.current = false;
     setModalOpen(false);
   };
 
